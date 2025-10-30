@@ -127,6 +127,27 @@ export default function RahmanTrustPage() {
         }
     };
 
+    const getLocationFlag = (location) => {
+        switch (location) {
+            case 'Switzerland':
+                return '🇨🇭';
+            case 'USA':
+                return '🇺🇸';
+            case 'France':
+                return '🇫🇷';
+            case 'UAE':
+                return '🇦🇪';
+            case 'Ireland':
+                return '🇮🇪';
+            case 'Singapore':
+                return '🇸🇬';
+            case 'Brazil':
+                return '🇧🇷';
+            default:
+                return '🌐';
+        }
+    };
+
     // --- ডাইনামিক সামারি গণনা ---
     const totalValue = portfolioData.reduce((acc, row) => acc + row.value, 0);
     const totalProjectedGain = portfolioData.reduce((acc, row) => acc + (row.value * row.rate), 0);
@@ -268,9 +289,31 @@ export default function RahmanTrustPage() {
 
                                 return (
                                     <tr key={row.id} className={rowClass}>
-                                        <td className="px-4 py-3 font-medium text-gray-100 sticky-col">{row.pic}</td>
+                                        <td className="px-4 py-3 font-medium text-gray-100 sticky-col whitespace-normal break-words">
+                                            <div className="block md:hidden">
+                                                <div>{row.pic}</div>
+                                                <div className="text-sm text-gray-400">
+                                                    {getLocationFlag(row.location)} {row.location}
+                                                </div>
+                                            </div>
+                                            <div className="hidden md:block">
+                                                {row.pic}
+                                            </div>
+                                        </td>
                                         <td className="px-4 py-3 hidden md:table-cell">{row.manager}</td>
                                         <td className="px-4 py-3 hidden md:table-cell">{row.location}</td>
+                                        <td
+                                            className={`px-4 py-3 whitespace-normal break-words ${isMobile ? 'cursor-pointer' : ''}`}
+                                            onClick={() => {
+                                                if (isMobile) {
+                                                    handleEdit(row);
+                                                }
+                                            }}
+                                            role={isMobile ? 'button' : undefined}
+                                            tabIndex={isMobile ? 0 : -1}
+                                        >
+                                            {formatMillions(row.value)}
+                                        </td>
                                         <td
                                             className={`px-4 py-3 whitespace-normal break-words ${isMobile ? 'cursor-pointer' : ''}`}
                                             onClick={() => {
