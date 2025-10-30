@@ -216,18 +216,18 @@ export default function CrazyFoxPage() {
                 
                 {/* Simulation Table Card */}
                 <div className="card shadow-lg shadow-blue-900/10 border border-gray-700/50 overflow-hidden md:overflow-x-auto">
-                    <table className="w-full min-w-full text-sm text-left text-gray-300">
+                    <table className="w-full table-fixed text-sm text-left text-gray-300">
                         <thead className="text-xs text-gray-400 uppercase table-header-bg">
                             <tr>
-                                <th scope="col" className="px-6 py-4 sticky-col">Year</th>
-                                <th scope="col" className="px-6 py-4">Starting Equity (AUM)</th>
-                                <th scope="col" className="px-6 py-4 hidden md:table-cell">Outstanding Loan</th>
-                                <th scope="col" className="px-6 py-4 hidden md:table-cell">Gross Return %</th>
-                                <th scope="col" className="px-6 py-4">Net Profit / Loss</th>
-                                <th scope="col" className="px-6 py-4 hidden md:table-cell">Principal Repayment</th>
-                                <th scope="col" className="px-6 py-4">Ending Equity (AUM)</th>
+                                <th scope="col" className="px-3 py-3 sticky-col w-1/6 md:w-auto whitespace-normal break-words">Year</th>
+                                <th scope="col" className="px-3 py-3 w-1/3 md:w-auto whitespace-normal break-words">Starting Equity (AUM)</th>
+                                <th scope="col" className="px-3 py-3 hidden md:table-cell">Outstanding Loan</th>
+                                <th scope="col" className="px-3 py-3 hidden md:table-cell">Gross Return %</th>
+                                <th scope="col" className="px-3 py-3 w-1/3 md:w-auto whitespace-normal break-words">Net Profit / Loss</th>
+                                <th scope="col" className="px-3 py-3 hidden md:table-cell">Principal Repayment</th>
+                                <th scope="col" className="px-3 py-3 w-auto md:w-auto whitespace-normal break-words">Ending Equity (AUM)</th>
                                 {/* --- ধাপ ৪: নতুন 'Actions' কলাম --- */}
-                                <th scope="col" className="px-6 py-4 hidden md:table-cell">Actions</th>
+                                <th scope="col" className="px-3 py-3 hidden md:table-cell">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -245,14 +245,14 @@ export default function CrazyFoxPage() {
 
                                 return (
                                     <tr key={row.year} className={rowClass}>
-                                        <td className="px-6 py-4 font-medium text-gray-100 sticky-col">{row.year}</td>
-                                        <td className="px-6 py-4">{formatCurrencyForTable(row.startAUM)}</td>
-                                        <td className="px-6 py-4 hidden md:table-cell highlight-loan">{formatCurrencyForTable(row.loan)}</td>
+                                        <td className="px-3 py-3 font-medium text-gray-100 sticky-col">{row.year}</td>
+                                        <td className="px-3 py-3 whitespace-normal break-words">{formatCurrencyForTable(row.startAUM)}</td>
+                                        <td className="px-3 py-3 hidden md:table-cell highlight-loan">{formatCurrencyForTable(row.loan)}</td>
 
-                                        <td className={`px-6 py-4 hidden md:table-cell ${grossReturnClass}`}>{(row.grossReturn * 100).toFixed(0)}%</td>
+                                        <td className={`px-3 py-3 hidden md:table-cell ${grossReturnClass}`}>{(row.grossReturn * 100).toFixed(0)}%</td>
                                         
                                         {/* --- ধাপ ৬: Gross Return সেল (ইনপুট ফিল্ড) --- */}
-                                        <td className={`px-6 py-4 font-semibold whitespace-normal break-words ${netProfitClass}`}>
+                                        <td className={`px-3 py-3 font-semibold whitespace-normal break-words ${netProfitClass}`}>
                                             <div
                                                 className={`${isMobile ? 'cursor-pointer' : ''}`}
                                                 onClick={() => handleGrossReturnCellClick(row)}
@@ -263,11 +263,11 @@ export default function CrazyFoxPage() {
                                                 <span className="block text-xs text-gray-400 md:hidden">({(row.grossReturn * 100).toFixed(0)}%)</span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 hidden md:table-cell repayment">{formatCurrencyForTable(row.repayment)}</td>
-                                        <td className="px-6 py-4 font-bold text-white">{formatCurrencyForTable(row.endAUM)}</td>
+                                        <td className="px-3 py-3 hidden md:table-cell repayment">{formatCurrencyForTable(row.repayment)}</td>
+                                        <td className="px-3 py-3 font-bold text-white whitespace-normal break-words">{formatCurrencyForTable(row.endAUM)}</td>
                                         
                                         {/* --- ধাপ ৭: Action বাটন সেল --- */}
-                                        <td className="px-6 py-4 hidden md:table-cell">
+                                        <td className="px-3 py-3 hidden md:table-cell">
                                             <button onClick={() => handleEdit(row)} className="text-blue-400 hover:text-blue-300">
                                                 <FiEdit2 size={18} />
                                             </button>
