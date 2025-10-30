@@ -57,38 +57,40 @@ export default function SelectionPage() {
         
         <div className="space-y-5">
           
-          {/* --- পরিবর্তন ১: CrazyFox বাটনে 'whileHover' যোগ করা হয়েছে --- */}
+          {/* --- পরিবর্তন ১: CrazyFox বাটনে নতুন ক্লাস যোগ করা হয়েছে --- */}
           <motion.div 
             variants={itemVariants}
             whileHover={{ scale: 1.03, transition: { type: "spring", stiffness: 400, damping: 15 } }}
+            className="glow-button-wrapper" // <-- নতুন wrapper ক্লাস
           >
             <Link 
               to="/crazyfox" 
-              className="block w-full p-5 text-left text-lg bg-gray-800 text-white rounded-lg border border-gray-700 hover:border-blue-500 hover:bg-gray-700/50 transition-all duration-300 ease-in-out group"
+              className="glow-button-inner group" // <-- নতুন inner ক্লাস
             >
               <div className="flex items-center">
                 <FiBarChart2 className="w-6 h-6 mr-4 text-blue-400" /> 
                 <div>
-                  <div className="font-semibold text-white group-hover:text-blue-300">CrazyFox Simulation</div>
+                  <div className="font-semibold text-white">CrazyFox Simulation</div>
                   <div className="text-sm font-normal text-gray-400 mt-1">View the 20-year financial model.</div>
                 </div>
               </div>
             </Link>
           </motion.div>
 
-          {/* --- পরিবর্তন ২: Rahman Trust বাটনে 'whileHover' যোগ করা হয়েছে --- */}
+          {/* --- পরিবর্তন ২: Rahman Trust বাটনে নতুন ক্লাস যোগ করা হয়েছে --- */}
           <motion.div 
             variants={itemVariants}
             whileHover={{ scale: 1.03, transition: { type: "spring", stiffness: 400, damping: 15 } }}
+            className="glow-button-wrapper" // <-- নতুন wrapper ক্লাস
           >
             <Link 
               to="/rahman-family-trust" 
-              className="block w-full p-5 text-left text-lg bg-gray-800 text-white rounded-lg border border-gray-700 hover:border-green-500 hover:bg-gray-700/50 transition-all duration-300 ease-in-out group"
+              className="glow-button-inner group" // <-- নতুন inner ক্লাস
             >
               <div className="flex items-center">
                 <FiShield className="w-6 h-6 mr-4 text-green-400" /> 
                 <div>
-                  <div className="font-semibold text-white group-hover:text-green-300">Rahman Family Trust</div>
+                  <div className="font-semibold text-white">Rahman Family Trust</div>
                   <div className="text-sm font-normal text-gray-400 mt-1">Access the trust's dashboard (WIP).</div>
                 </div>
               </div>

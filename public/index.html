@@ -93,6 +93,65 @@
         .supernova .text-yellow-300 {
              text-shadow: 0 0 8px rgba(250, 204, 21, 0.5);
         }
+        /* --- নতুন Galaxy Glow Button CSS --- */
+        @keyframes rotateBg {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        /* এই 'wrapper' div-টি অ্যানিমেটেড বর্ডার হিসেবে কাজ করবে */
+        .glow-button-wrapper {
+          position: relative;
+          z-index: 10;
+          border-radius: 9999px; /* বাটনটিকে 'pill' বা ক্যাপসুল শেপ দেয় */
+          overflow: hidden; /* ভেতরের অ্যানিমেশনকে মাস্ক করে */
+          padding: 2px; /* এটি বর্ডারের পুরুত্ব (thickness) ঠিক করে */
+        }
+
+        /* এই pseudo-element-টি হলো আসল অ্যানিমেটেড গ্রেডিয়েন্ট */
+        .glow-button-wrapper::before {
+          content: '';
+          position: absolute;
+          top: -50%;
+          left: -50%;
+          width: 200%;
+          height: 200%;
+          z-index: -1; /* বর্ডারের পেছনে থাকে */
+          
+          /* এই গ্রেডিয়েন্টটি ঘোরে */
+          background-image: conic-gradient(
+            transparent, 
+            transparent, 
+            transparent, 
+            #3b82f6, /* উজ্জ্বল নীল */
+            #a78bfa, /* পার্পল */
+            #3b82f6, /* উজ্জ্বল নীল */
+            transparent,
+            transparent
+          );
+          
+          animation: rotateBg 4s linear infinite; /* অ্যানিমেশনটি ৪ সেকেন্ড ধরে চলে */
+        }
+
+        /* এটি হলো ভেতরের কালো বাটন */
+        .glow-button-inner {
+          position: relative;
+          z-index: 2; /* অ্যানিমেশনের উপরে থাকে */
+          display: block;
+          width: 100%;
+          padding: 1.25rem; /* p-5 */
+          text-align: left;
+          font-size: 1.125rem; /* text-lg */
+          background-color: #111827; /* বাটনের ভেতরের রঙ */
+          border-radius: 9999px; /* ক্যাপসুল শেপ */
+          transition: background-color 0.2s ease;
+        }
+        
+        /* হোভার করলে ভেতরের বাটনটি সামান্য উজ্জ্বল হবে */
+        .glow-button-wrapper:hover .glow-button-inner {
+           background-color: #1f2937; 
+        }
+        /* --- CSS শেষ --- */
     </style>
   </head>
   <body>
