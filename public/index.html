@@ -11,7 +11,8 @@
     />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <title>CrazyFox</title>
+   
+    <title>CrazyFox App</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -20,9 +21,30 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
+        /* --- নতুন লাইভ ব্যাকগ্রাউন্ড অ্যানিমেশন --- */
+        @keyframes moveBg {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+
+        .animated-gradient {
+          /* একটি বড়, জটিল গ্রেডিয়েন্ট যা নড়াচড়া করবে */
+          background-image: linear-gradient(
+            -45deg, 
+            #030712, 
+            #111827, 
+            #0a0a23, 
+            #1f2937
+          );
+          background-size: 400% 400%; /* গ্রেডিয়েন্টকে অনেক বড় করা হলো */
+          animation: moveBg 15s ease-in-out infinite; /* অ্যানিমেশনটি যোগ করা হলো */
+        }
+        /* --- অ্যানিমেশন শেষ --- */
+
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #030712;
+            /* background-color: #030712; (মুছে ফেলা হয়েছে) */
             color: #f9fafb;
         }
         .card {
@@ -55,11 +77,12 @@
             z-index: 10;
             background-color: #111827; /* Must match the row background */
         }
-        thead .sticky-col,
-        tbody tr .sticky-col {
+        thead .sticky-col {
             border-right: 1px solid #1f2937;
         }
-        /* Highlight for the special Year 6 */
+        tbody tr .sticky-col {
+             border-right: 1px solid #1f2937;
+        }
         .supernova {
             background-color: rgba(250, 204, 21, 0.1);
             font-weight: 700;
@@ -75,5 +98,5 @@
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
-    </body>
+  </body>
 </html>
