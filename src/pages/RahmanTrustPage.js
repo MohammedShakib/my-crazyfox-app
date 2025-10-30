@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiEdit2, FiSave, FiXCircle, FiGrid, FiCopy } from 'react-icons/fi';
 
@@ -31,6 +31,10 @@ function formatCurrencyForTable(num) {
     return `$${(absNum / 1e3).toFixed(0)} K`;
 }
 
+function formatMillions(num) {
+    return `$${(num / 1e6).toFixed(2)} M`;
+}
+
 // --- ডায়াগ্রামটি মুছে ফেলা হয়েছে ---
 // const structureDiagram = ... (এই অংশটি ডিলিট করা হয়েছে)
 
@@ -39,26 +43,70 @@ export default function RahmanTrustPage() {
     // --- State তৈরি করা ---
     const [portfolioData, setPortfolioData] = useState(initialPortfolio);
     const [editRowId, setEditRowId] = useState(null);
-    const [editRate, setEditRate] = useState(0);
+    const [editRate, setEditRate] = useState('0');
+    const [editValue, setEditValue] = useState('0');
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const inputRef = useRef(null);
+
+    useEffect(() => {
+        if (isModalOpen && inputRef.current) {
+            inputRef.current.focus();
+            inputRef.current.select();
+        }
+    }, [isModalOpen]);
 
     // --- এডিট/সেভ ফাংশন ---
     const handleEdit = (row) => {
         setEditRowId(row.id);
         setEditRate((row.rate * 100).toFixed(1));
+        setEditValue((row.value / 1e6).toFixed(2));
+        setIsModalOpen(true);
     };
 
     const handleCancel = () => {
+        setIsModalOpen(false);
         setEditRowId(null);
+        setEditRate('0');
+        setEditValue('0');
     };
 
-    const handleSave = (rowId) => {
-        const newRate = parseFloat(editRate) / 100;
+    const handleSave = () => {
+        if (editRowId === null) {
+            return;
+        }
+
+        const parsedRate = parseFloat(editRate);
+        const parsedValueMillions = parseFloat(editValue);
+        if (Number.isNaN(parsedRate) || Number.isNaN(parsedValueMillions)) {
+            return;
+        }
+
+        const newRate = parsedRate / 100;
+        const newValue = parsedValueMillions * 1e6;
+
         setPortfolioData(prevData =>
             prevData.map(row =>
-                row.id === rowId ? { ...row, rate: newRate } : row
+                row.id === editRowId ? { ...row, rate: newRate, value: newValue } : row
             )
         );
+
+        setIsModalOpen(false);
         setEditRowId(null);
+        setEditRate('0');
+        setEditValue('0');
+    };
+
+    const handleModalKeyDown = (event) => {
+        if (event.key === 'Enter') {
+            if (event.target.tagName !== 'INPUT') {
+                return;
+            }
+            event.preventDefault();
+            handleSave();
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            handleCancel();
+        }
     };
 
     // --- ডাইনামিক সামারি গণনা ---
@@ -108,6 +156,73 @@ export default function RahmanTrustPage() {
                     </div>
                 </div>
 
+                {isModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+                        <div
+                            className="relative w-full max-w-lg rounded-xl border border-gray-700 bg-gray-900 p-6 shadow-xl"
+                            onKeyDown={handleModalKeyDown}
+                            tabIndex={-1}
+                        >
+                            <button
+                                type="button"
+                                onClick={handleCancel}
+                                className="absolute right-3 top-3 text-gray-400 transition-colors hover:text-red-400"
+                                aria-label="Cancel editing"
+                            >
+                                <FiXCircle size={20} />
+                            </button>
+                            <h3 className="text-xl font-semibold text-white">Edit Portfolio Allocation</h3>
+                            <p className="mt-1 text-sm text-gray-400">Adjust the capital (in millions) and target rate for the selected PIC.</p>
+
+                            <label className="mt-4 block text-sm font-medium text-gray-300" htmlFor="portfolio-value-input">
+                                Portfolio Value (Millions USD)
+                            </label>
+                            <input
+                                id="portfolio-value-input"
+                                ref={inputRef}
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                className="mt-2 w-full rounded-md border border-blue-500 bg-gray-800 p-3 text-white outline-none focus:ring-2 focus:ring-blue-400"
+                            />
+
+                            <label className="mt-4 block text-sm font-medium text-gray-300" htmlFor="portfolio-rate-input">
+                                Mandate Rate (%)
+                            </label>
+                            <input
+                                id="portfolio-rate-input"
+                                type="number"
+                                step="0.1"
+                                value={editRate}
+                                onChange={(e) => setEditRate(e.target.value)}
+                                className="mt-2 w-full rounded-md border border-blue-500 bg-gray-800 p-3 text-white outline-none focus:ring-2 focus:ring-blue-400"
+                            />
+
+                            <p className="mt-2 text-xs text-gray-500">Press Enter to save or Esc to cancel.</p>
+
+                            <div className="mt-6 flex justify-end space-x-3">
+                                <button
+                                    type="button"
+                                    onClick={handleCancel}
+                                    className="rounded-md border border-gray-600 px-4 py-2 text-sm text-gray-300 transition-colors hover:bg-gray-800"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleSave}
+                                    className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                >
+                                    <FiSave size={16} className="mr-2" />
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* --- Ownership Structure কার্ডটি এখান থেকে ডিলিট করা হয়েছে --- */}
 
                 {/* ডাইনামিক টেবিল */}
@@ -129,29 +244,19 @@ export default function RahmanTrustPage() {
                                 const isEditing = editRowId === row.id;
                                 const projectedGain = row.value * row.rate;
                                 const gainClass = projectedGain >= 0 ? 'profit' : 'loss';
+                                let rowClass = 'border-b table-row-border transition-colors duration-200 hover:bg-gray-800/50';
+                                if (isEditing) { rowClass += ' ring-2 ring-blue-400/60'; }
 
                                 return (
-                                    <tr key={row.id} className="border-b table-row-border transition-colors duration-200 hover:bg-gray-800/50">
+                                    <tr key={row.id} className={rowClass}>
                                         <td className="px-6 py-4 font-medium text-gray-100 sticky-col">{row.pic}</td>
                                         <td className="px-6 py-4">{row.manager}</td>
                                         <td className="px-6 py-4">{row.location}</td>
-                                        <td className="px-6 py-4">{formatCurrencyForTable(row.value)}</td>
+                                        <td className="px-6 py-4">{formatMillions(row.value)}</td>
                                         
                                         {/* এডিটেবল সেল */}
                                         <td className="px-6 py-4">
-                                            {isEditing ? (
-                                                <div className='flex items-center space-x-1'>
-                                                    <input 
-                                                        type="number"
-                                                        value={editRate}
-                                                        onChange={(e) => setEditRate(e.target.value)}
-                                                        className="w-20 bg-gray-700 text-white p-1 rounded border border-blue-500"
-                                                    />
-                                                    <span>%</span>
-                                                </div>
-                                            ) : (
-                                                <span>{row.mandate} ({(row.rate * 100).toFixed(1)}%)</span>
-                                            )}
+                                            <span>{row.mandate} ({(row.rate * 100).toFixed(1)}%)</span>
                                         </td>
                                         
                                         {/* ডাইনামিক সেল */}
@@ -159,14 +264,9 @@ export default function RahmanTrustPage() {
                                         
                                         {/* অ্যাকশন বাটন */}
                                         <td className="px-6 py-4">
-                                            {isEditing ? (
-                                                <div className="flex space-x-3">
-                                                    <button onClick={() => handleSave(row.id)} className="text-green-400 hover:text-green-300"><FiSave size={18} /></button>
-                                                    <button onClick={handleCancel} className="text-red-400 hover:text-red-300"><FiXCircle size={18} /></button>
-                                                </div>
-                                            ) : (
-                                                <button onClick={() => handleEdit(row)} className="text-blue-400 hover:text-blue-300"><FiEdit2 size={18} /></button>
-                                            )}
+                                            <button onClick={() => handleEdit(row)} className="text-blue-400 hover:text-blue-300">
+                                                <FiEdit2 size={18} />
+                                            </button>
                                         </td>
                                     </tr>
                                 );
