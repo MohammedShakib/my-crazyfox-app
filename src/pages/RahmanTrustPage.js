@@ -314,18 +314,6 @@ export default function RahmanTrustPage() {
                                         >
                                             {formatMillions(row.value)}
                                         </td>
-                                        <td
-                                            className={`px-4 py-3 whitespace-normal break-words ${isMobile ? 'cursor-pointer' : ''}`}
-                                            onClick={() => {
-                                                if (isMobile) {
-                                                    handleEdit(row);
-                                                }
-                                            }}
-                                            role={isMobile ? 'button' : undefined}
-                                            tabIndex={isMobile ? 0 : -1}
-                                        >
-                                            {formatMillions(row.value)}
-                                        </td>
                                         
                                         {/* এডিটেবল সেল */}
                                         <td className="px-4 py-3 hidden md:table-cell">
