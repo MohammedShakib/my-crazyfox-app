@@ -222,7 +222,7 @@ export default function CrazyFoxPage() {
                                 <th scope="col" className="px-6 py-4 sticky-col">Year</th>
                                 <th scope="col" className="px-6 py-4">Starting Equity (AUM)</th>
                                 <th scope="col" className="px-6 py-4 hidden md:table-cell">Outstanding Loan</th>
-                                <th scope="col" className="px-6 py-4">Gross Return %</th>
+                                <th scope="col" className="px-6 py-4 hidden md:table-cell">Gross Return %</th>
                                 <th scope="col" className="px-6 py-4">Net Profit / Loss</th>
                                 <th scope="col" className="px-6 py-4 hidden md:table-cell">Principal Repayment</th>
                                 <th scope="col" className="px-6 py-4">Ending Equity (AUM)</th>
@@ -248,18 +248,21 @@ export default function CrazyFoxPage() {
                                         <td className="px-6 py-4 font-medium text-gray-100 sticky-col">{row.year}</td>
                                         <td className="px-6 py-4">{formatCurrencyForTable(row.startAUM)}</td>
                                         <td className="px-6 py-4 hidden md:table-cell highlight-loan">{formatCurrencyForTable(row.loan)}</td>
+
+                                        <td className={`px-6 py-4 hidden md:table-cell ${grossReturnClass}`}>{(row.grossReturn * 100).toFixed(0)}%</td>
                                         
                                         {/* --- ধাপ ৬: Gross Return সেল (ইনপুট ফিল্ড) --- */}
-                                        <td
-                                            className={`px-6 py-4 ${grossReturnClass} ${isMobile ? 'cursor-pointer' : 'cursor-default'}`}
-                                            onClick={() => handleGrossReturnCellClick(row)}
-                                            role={isMobile ? 'button' : undefined}
-                                            tabIndex={isMobile ? 0 : -1}
-                                        >
-                                            <span>{(row.grossReturn * 100).toFixed(0)}%</span>
+                                        <td className={`px-6 py-4 font-semibold whitespace-normal break-words ${netProfitClass}`}>
+                                            <div
+                                                className={`${isMobile ? 'cursor-pointer' : ''}`}
+                                                onClick={() => handleGrossReturnCellClick(row)}
+                                                role={isMobile ? 'button' : undefined}
+                                                tabIndex={isMobile ? 0 : -1}
+                                            >
+                                                <span>{formatCurrencyV2(row.netProfit)}</span>
+                                                <span className="block text-xs text-gray-400 md:hidden">({(row.grossReturn * 100).toFixed(0)}%)</span>
+                                            </div>
                                         </td>
-                                        
-                                        <td className={`px-6 py-4 font-semibold ${netProfitClass}`}>{formatCurrencyV2(row.netProfit)}</td>
                                         <td className="px-6 py-4 hidden md:table-cell repayment">{formatCurrencyForTable(row.repayment)}</td>
                                         <td className="px-6 py-4 font-bold text-white">{formatCurrencyForTable(row.endAUM)}</td>
                                         
