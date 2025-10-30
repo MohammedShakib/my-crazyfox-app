@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiEdit2, FiSave, FiXCircle, FiGrid, FiCopy } from 'react-icons/fi';
 
-// --- ধাপ ১: প্রাথমিক ডেটা সেটআপ ---
+// --- à¦§à¦¾à¦ª à§§: à¦ªà§à¦°à¦¾à¦¥à¦®à¦¿à¦• à¦¡à§‡à¦Ÿà¦¾ à¦¸à§‡à¦Ÿà¦†à¦ª ---
 const initialPortfolio = [
     { id: 1, pic: 'Rahman Matterhorn Ltd.', manager: 'UBS', location: 'Switzerland', value: 142857142, rate: 0.060, mandate: 'Stable Growth' },
     { id: 2, pic: 'Rahman Sierra Ltd.', manager: 'Goldman Sachs', location: 'USA', value: 142857142, rate: 0.075, mandate: 'Balanced Growth' },
@@ -13,10 +13,10 @@ const initialPortfolio = [
     { id: 7, pic: 'Rahman Andes Ltd.', manager: 'BTG Pactual', location: 'Brazil', value: 142857142, rate: 0.090, mandate: 'Aggressive Growth' },
 ];
 
-// --- ফরম্যাটিং হেল্পার ---
+// --- à¦«à¦°à¦®à§à¦¯à¦¾à¦Ÿà¦¿à¦‚ à¦¹à§‡à¦²à§à¦ªà¦¾à¦° ---
 function formatCurrencyWithSign(num) {
     if (num === 0) return '$0';
-    const sign = num < 0 ? '−' : '+';
+    const sign = num < 0 ? 'âˆ’' : '+';
     const absNum = Math.abs(num);
     if (absNum >= 1e9) return `${sign}$${(absNum / 1e9).toFixed(2)} B`;
     if (absNum >= 1e6) return `${sign}$${(absNum / 1e6).toFixed(2)} M`;
@@ -35,17 +35,19 @@ function formatMillions(num) {
     return `$${(num / 1e6).toFixed(2)} M`;
 }
 
-// --- ডায়াগ্রামটি মুছে ফেলা হয়েছে ---
-// const structureDiagram = ... (এই অংশটি ডিলিট করা হয়েছে)
+// --- à¦¡à¦¾à§Ÿà¦¾à¦—à§à¦°à¦¾à¦®à¦Ÿà¦¿ à¦®à§à¦›à§‡ à¦«à§‡à¦²à¦¾ à¦¹à§Ÿà§‡à¦›à§‡ ---
+// const structureDiagram = ... (à¦à¦‡ à¦…à¦‚à¦¶à¦Ÿà¦¿ à¦¡à¦¿à¦²à¦¿à¦Ÿ à¦•à¦°à¦¾ à¦¹à§Ÿà§‡à¦›à§‡)
 
 export default function RahmanTrustPage() {
     
-    // --- State তৈরি করা ---
+    // --- State à¦¤à§ˆà¦°à¦¿ à¦•à¦°à¦¾ ---
     const [portfolioData, setPortfolioData] = useState(initialPortfolio);
     const [editRowId, setEditRowId] = useState(null);
     const [editRate, setEditRate] = useState('0');
     const [editValue, setEditValue] = useState('0');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
+    const [editPicName, setEditPicName] = useState('');
     const inputRef = useRef(null);
 
     useEffect(() => {
@@ -55,11 +57,19 @@ export default function RahmanTrustPage() {
         }
     }, [isModalOpen]);
 
-    // --- এডিট/সেভ ফাংশন ---
+    useEffect(() => {
+        const updateIsMobile = () => setIsMobile(window.innerWidth < 768);
+        updateIsMobile();
+        window.addEventListener('resize', updateIsMobile);
+        return () => window.removeEventListener('resize', updateIsMobile);
+    }, []);
+
+    // --- à¦à¦¡à¦¿à¦Ÿ/à¦¸à§‡à¦­ à¦«à¦¾à¦‚à¦¶à¦¨ ---
     const handleEdit = (row) => {
         setEditRowId(row.id);
         setEditRate((row.rate * 100).toFixed(1));
         setEditValue((row.value / 1e6).toFixed(2));
+        setEditPicName(row.pic);
         setIsModalOpen(true);
     };
 
@@ -68,6 +78,7 @@ export default function RahmanTrustPage() {
         setEditRowId(null);
         setEditRate('0');
         setEditValue('0');
+        setEditPicName('');
     };
 
     const handleSave = () => {
@@ -94,6 +105,13 @@ export default function RahmanTrustPage() {
         setEditRowId(null);
         setEditRate('0');
         setEditValue('0');
+        setEditPicName('');
+    };
+
+    const handleMandateCellClick = (row) => {
+        if (isMobile) {
+            handleEdit(row);
+        }
     };
 
     const handleModalKeyDown = (event) => {
@@ -109,19 +127,19 @@ export default function RahmanTrustPage() {
         }
     };
 
-    // --- ডাইনামিক সামারি গণনা ---
+    // --- à¦¡à¦¾à¦‡à¦¨à¦¾à¦®à¦¿à¦• à¦¸à¦¾à¦®à¦¾à¦°à¦¿ à¦—à¦£à¦¨à¦¾ ---
     const totalValue = portfolioData.reduce((acc, row) => acc + row.value, 0);
     const totalProjectedGain = portfolioData.reduce((acc, row) => acc + (row.value * row.rate), 0);
     const blendedRate = (totalProjectedGain / totalValue) * 100;
     
-    // --- নতুন: মাসিক ইনকাম গণনা ---
+    // --- à¦¨à¦¤à§à¦¨: à¦®à¦¾à¦¸à¦¿à¦• à¦‡à¦¨à¦•à¦¾à¦® à¦—à¦£à¦¨à¦¾ ---
     const monthlyIncome = totalProjectedGain / 12;
 
     return (
         <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-gray-900 via-[#030712] to-gray-900">
             <div className="max-w-7xl mx-auto">
 
-                {/* হেডার: Back বাটন এবং টাইটেল */}
+                {/* à¦¹à§‡à¦¡à¦¾à¦°: Back à¦¬à¦¾à¦Ÿà¦¨ à¦à¦¬à¦‚ à¦Ÿà¦¾à¦‡à¦Ÿà§‡à¦² */}
                 <header className="flex items-center justify-between mb-10">
                     <Link 
                         to="/"
@@ -137,7 +155,7 @@ export default function RahmanTrustPage() {
                     </div>
                 </header>
 
-                {/* ডাইনামিক সামারি কার্ড (এটি উপরেই থাকছে) */}
+                {/* à¦¡à¦¾à¦‡à¦¨à¦¾à¦®à¦¿à¦• à¦¸à¦¾à¦®à¦¾à¦°à¦¿ à¦•à¦¾à¦°à§à¦¡ (à¦à¦Ÿà¦¿ à¦‰à¦ªà¦°à§‡à¦‡ à¦¥à¦¾à¦•à¦›à§‡) */}
                 <div className="card p-6 md:p-8 mb-10 shadow-lg shadow-green-900/10 border border-gray-700/50">
                     <h2 className="text-xl font-semibold text-white mb-6">Global Portfolio Summary</h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-gray-300">
@@ -172,6 +190,7 @@ export default function RahmanTrustPage() {
                                 <FiXCircle size={20} />
                             </button>
                             <h3 className="text-xl font-semibold text-white">Edit Portfolio Allocation</h3>
+                            {editPicName && (<p className="mt-1 text-sm font-semibold text-gray-200">{editPicName}</p>)}
                             <p className="mt-1 text-sm text-gray-400">Adjust the capital (in millions) and target rate for the selected PIC.</p>
 
                             <label className="mt-4 block text-sm font-medium text-gray-300" htmlFor="portfolio-value-input">
@@ -223,20 +242,20 @@ export default function RahmanTrustPage() {
                     </div>
                 )}
 
-                {/* --- Ownership Structure কার্ডটি এখান থেকে ডিলিট করা হয়েছে --- */}
+                {/* --- Ownership Structure à¦•à¦¾à¦°à§à¦¡à¦Ÿà¦¿ à¦à¦–à¦¾à¦¨ à¦¥à§‡à¦•à§‡ à¦¡à¦¿à¦²à¦¿à¦Ÿ à¦•à¦°à¦¾ à¦¹à§Ÿà§‡à¦›à§‡ --- */}
 
-                {/* ডাইনামিক টেবিল */}
+                {/* à¦¡à¦¾à¦‡à¦¨à¦¾à¦®à¦¿à¦• à¦Ÿà§‡à¦¬à¦¿à¦² */}
                 <div className="overflow-x-auto card shadow-lg shadow-green-900/10 border border-gray-700/50">
                     <table className="w-full text-sm text-left text-gray-300">
                         <thead className="text-xs text-gray-400 uppercase table-header-bg">
                             <tr>
                                 <th scope="col" className="px-6 py-4 sticky-col">BVI PIC (Legal Owner)</th>
-                                <th scope="col" className="px-6 py-4">Wealth Manager</th>
-                                <th scope="col" className="px-6 py-4">Banking Location</th>
+                                <th scope="col" className="px-6 py-4 hidden md:table-cell">Wealth Manager</th>
+                                <th scope="col" className="px-6 py-4 hidden md:table-cell">Banking Location</th>
                                 <th scope="col" className="px-6 py-4">Portfolio Value</th>
                                 <th scope="col" className="px-6 py-4">Mandate (Rate)</th>
                                 <th scope="col" className="px-6 py-4">Projected Gain</th>
-                                <th scope="col" className="px-6 py-4">Actions</th>
+                                <th scope="col" className="px-6 py-4 hidden md:table-cell">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -250,20 +269,25 @@ export default function RahmanTrustPage() {
                                 return (
                                     <tr key={row.id} className={rowClass}>
                                         <td className="px-6 py-4 font-medium text-gray-100 sticky-col">{row.pic}</td>
-                                        <td className="px-6 py-4">{row.manager}</td>
-                                        <td className="px-6 py-4">{row.location}</td>
+                                        <td className="px-6 py-4 hidden md:table-cell">{row.manager}</td>
+                                        <td className="px-6 py-4 hidden md:table-cell">{row.location}</td>
                                         <td className="px-6 py-4">{formatMillions(row.value)}</td>
                                         
-                                        {/* এডিটেবল সেল */}
-                                        <td className="px-6 py-4">
+                                        {/* à¦à¦¡à¦¿à¦Ÿà§‡à¦¬à¦² à¦¸à§‡à¦² */}
+                                        <td
+                                            className={`px-6 py-4 ${isMobile ? 'cursor-pointer' : 'cursor-default'}`}
+                                            onClick={() => handleMandateCellClick(row)}
+                                            role={isMobile ? 'button' : undefined}
+                                            tabIndex={isMobile ? 0 : -1}
+                                        >
                                             <span>{row.mandate} ({(row.rate * 100).toFixed(1)}%)</span>
                                         </td>
                                         
-                                        {/* ডাইনামিক সেল */}
+                                        {/* à¦¡à¦¾à¦‡à¦¨à¦¾à¦®à¦¿à¦• à¦¸à§‡à¦² */}
                                         <td className={`px-6 py-4 font-semibold ${gainClass}`}>{formatCurrencyWithSign(projectedGain)}</td>
                                         
-                                        {/* অ্যাকশন বাটন */}
-                                        <td className="px-6 py-4">
+                                        {/* à¦…à§à¦¯à¦¾à¦•à¦¶à¦¨ à¦¬à¦¾à¦Ÿà¦¨ */}
+                                        <td className="px-6 py-4 hidden md:table-cell">
                                             <button onClick={() => handleEdit(row)} className="text-blue-400 hover:text-blue-300">
                                                 <FiEdit2 size={18} />
                                             </button>
@@ -272,7 +296,7 @@ export default function RahmanTrustPage() {
                                 );
                             })}
                         </tbody>
-                         {/* টেবিল ফুটার */}
+                         {/* à¦Ÿà§‡à¦¬à¦¿à¦² à¦«à§à¦Ÿà¦¾à¦° */}
                         <tfoot className="table-header-bg">
                             <tr>
                                 <td colSpan="7" className="px-6 py-3">
@@ -291,13 +315,13 @@ export default function RahmanTrustPage() {
                     </table>
                 </div>
 
-                {/* --- নতুন: ইনকাম সামারি কার্ড (শেষে) --- */}
+                {/* --- à¦¨à¦¤à§à¦¨: à¦‡à¦¨à¦•à¦¾à¦® à¦¸à¦¾à¦®à¦¾à¦°à¦¿ à¦•à¦¾à¦°à§à¦¡ (à¦¶à§‡à¦·à§‡) --- */}
                 <div className="card p-6 md:p-8 mt-10 shadow-lg shadow-green-900/10 border border-gray-700/50">
                     <h2 className="text-xl font-semibold text-white mb-6">Estimated Income Figures</h2>
                     
                     {/* Annual Income */}
                     <div className="mb-6">
-                        <h3 className="text-lg font-semibold text-gray-300 mb-1">💰 Annual Income</h3>
+                        <h3 className="text-lg font-semibold text-gray-300 mb-1">ðŸ’° Annual Income</h3>
                         <p className="text-3xl font-bold text-white">
                             {formatCurrencyForTable(totalProjectedGain)}
                         </p>
@@ -308,7 +332,7 @@ export default function RahmanTrustPage() {
 
                     {/* Monthly Income */}
                     <div>
-                        <h3 className="text-lg font-semibold text-gray-300 mb-1">💰 Monthly Income</h3>
+                        <h3 className="text-lg font-semibold text-gray-300 mb-1">ðŸ’° Monthly Income</h3>
                         <p className="text-3xl font-bold text-white">
                             {formatCurrencyForTable(monthlyIncome)}
                         </p>
@@ -322,3 +346,6 @@ export default function RahmanTrustPage() {
         </div>
     );
 }
+
+
+

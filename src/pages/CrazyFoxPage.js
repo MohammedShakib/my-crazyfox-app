@@ -57,6 +57,7 @@ export default function CrazyFoxPage() {
     // ইনপুট ফিল্ডের ভ্যালু রাখার জন্য
     const [editGrossReturn, setEditGrossReturn] = useState('0');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
     const inputRef = useRef(null);
 
     useEffect(() => {
@@ -65,6 +66,13 @@ export default function CrazyFoxPage() {
             inputRef.current.select();
         }
     }, [isModalOpen]);
+
+    useEffect(() => {
+        const updateIsMobile = () => setIsMobile(window.innerWidth < 768);
+        updateIsMobile();
+        window.addEventListener('resize', updateIsMobile);
+        return () => window.removeEventListener('resize', updateIsMobile);
+    }, []);
 
     // --- ধাপ ২: Recalculation Logic ---
     // এটি একটি কাল্পনিক কিন্তু বাস্তবসম্মত "2 and 20" ফি মডেল (2% ম্যানেজমেন্ট ফি, 20% পারফরম্যান্স ফি)
@@ -139,6 +147,12 @@ export default function CrazyFoxPage() {
         setEditGrossReturn('0');
     };
 
+    const handleGrossReturnCellClick = (row) => {
+        if (isMobile) {
+            handleEdit(row);
+        }
+    };
+
     const handleModalKeyDown = (event) => {
         if (event.key === 'Enter') {
             if (event.target.tagName !== 'INPUT') {
@@ -207,13 +221,13 @@ export default function CrazyFoxPage() {
                             <tr>
                                 <th scope="col" className="px-6 py-4 sticky-col">Year</th>
                                 <th scope="col" className="px-6 py-4">Starting Equity (AUM)</th>
-                                <th scope="col" className="px-6 py-4">Outstanding Loan</th>
+                                <th scope="col" className="px-6 py-4 hidden md:table-cell">Outstanding Loan</th>
                                 <th scope="col" className="px-6 py-4">Gross Return %</th>
                                 <th scope="col" className="px-6 py-4">Net Profit / Loss</th>
-                                <th scope="col" className="px-6 py-4">Principal Repayment</th>
+                                <th scope="col" className="px-6 py-4 hidden md:table-cell">Principal Repayment</th>
                                 <th scope="col" className="px-6 py-4">Ending Equity (AUM)</th>
                                 {/* --- ধাপ ৪: নতুন 'Actions' কলাম --- */}
-                                <th scope="col" className="px-6 py-4">Actions</th>
+                                <th scope="col" className="px-6 py-4 hidden md:table-cell">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -233,19 +247,24 @@ export default function CrazyFoxPage() {
                                     <tr key={row.year} className={rowClass}>
                                         <td className="px-6 py-4 font-medium text-gray-100 sticky-col">{row.year}</td>
                                         <td className="px-6 py-4">{formatCurrencyForTable(row.startAUM)}</td>
-                                        <td className="px-6 py-4 highlight-loan">{formatCurrencyForTable(row.loan)}</td>
+                                        <td className="px-6 py-4 hidden md:table-cell highlight-loan">{formatCurrencyForTable(row.loan)}</td>
                                         
                                         {/* --- ধাপ ৬: Gross Return সেল (ইনপুট ফিল্ড) --- */}
-                                        <td className={`px-6 py-4 ${grossReturnClass}`}>
+                                        <td
+                                            className={`px-6 py-4 ${grossReturnClass} ${isMobile ? 'cursor-pointer' : 'cursor-default'}`}
+                                            onClick={() => handleGrossReturnCellClick(row)}
+                                            role={isMobile ? 'button' : undefined}
+                                            tabIndex={isMobile ? 0 : -1}
+                                        >
                                             <span>{(row.grossReturn * 100).toFixed(0)}%</span>
                                         </td>
                                         
                                         <td className={`px-6 py-4 font-semibold ${netProfitClass}`}>{formatCurrencyV2(row.netProfit)}</td>
-                                        <td className="px-6 py-4 repayment">{formatCurrencyForTable(row.repayment)}</td>
+                                        <td className="px-6 py-4 hidden md:table-cell repayment">{formatCurrencyForTable(row.repayment)}</td>
                                         <td className="px-6 py-4 font-bold text-white">{formatCurrencyForTable(row.endAUM)}</td>
                                         
                                         {/* --- ধাপ ৭: Action বাটন সেল --- */}
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-4 hidden md:table-cell">
                                             <button onClick={() => handleEdit(row)} className="text-blue-400 hover:text-blue-300">
                                                 <FiEdit2 size={18} />
                                             </button>
@@ -339,3 +358,5 @@ export default function CrazyFoxPage() {
         </div>
     );
 }
+
+
