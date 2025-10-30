@@ -215,8 +215,8 @@ export default function CrazyFoxPage() {
                 </div>
                 
                 {/* Simulation Table Card */}
-                <div className="overflow-x-auto card shadow-lg shadow-blue-900/10 border border-gray-700/50">
-                    <table className="w-full text-sm text-left text-gray-300">
+                <div className="card shadow-lg shadow-blue-900/10 border border-gray-700/50 overflow-hidden md:overflow-x-auto">
+                    <table className="w-full min-w-full text-sm text-left text-gray-300">
                         <thead className="text-xs text-gray-400 uppercase table-header-bg">
                             <tr>
                                 <th scope="col" className="px-6 py-4 sticky-col">Year</th>
@@ -268,7 +268,7 @@ export default function CrazyFoxPage() {
                                             <button onClick={() => handleEdit(row)} className="text-blue-400 hover:text-blue-300">
                                                 <FiEdit2 size={18} />
                                             </button>
-                                          </td>
+                                        </td>
                                     </tr>
                                 );
                             })}
@@ -358,5 +358,7 @@ export default function CrazyFoxPage() {
         </div>
     );
 }
+
+
 
 
