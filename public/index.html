@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta
+      name="description"
+      content="Web site created using create-react-app"
+    />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <title>CrazyFox</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #030712;
+            color: #f9fafb;
+        }
+        .card {
+            background-color: #111827;
+            border-radius: 0.75rem;
+            border: 1px solid #1f2937;
+        }
+        .table-header-bg {
+             background-color: #111827;
+        }
+        .table-row-border {
+            border-color: #1f2937;
+        }
+        .profit {
+            color: #4ade80;
+        }
+        .loss {
+            color: #f87171;
+        }
+        .highlight-loan {
+            color: #60a5fa;
+        }
+         .repayment {
+            color: #facc15;
+        }
+        .sticky-col {
+            position: -webkit-sticky; /* For Safari */
+            position: sticky;
+            left: 0;
+            z-index: 10;
+            background-color: #111827; /* Must match the row background */
+        }
+        thead .sticky-col {
+            border-right: 1px solid #1f2937;
+        }
+        tbody tr .sticky-col {
+             border-right: 1px solid #1f2937;
+        }
+        /* Highlight for the special Year 6 */
+        .supernova {
+            background-color: rgba(250, 204, 21, 0.1);
+            font-weight: 700;
+        }
+        .supernova .profit {
+            text-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
+        }
+        .supernova .text-yellow-300 {
+             text-shadow: 0 0 8px rgba(250, 204, 21, 0.5);
+        }
+    </style>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    </body>
+</html>
