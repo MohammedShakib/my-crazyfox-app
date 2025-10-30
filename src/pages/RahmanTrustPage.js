@@ -249,13 +249,13 @@ export default function RahmanTrustPage() {
                     <table className="w-full text-sm text-left text-gray-300">
                         <thead className="text-xs text-gray-400 uppercase table-header-bg">
                             <tr>
-                                <th scope="col" className="px-4 py-3 sticky-col">BVI PIC (Legal Owner)</th>
-                                <th scope="col" className="px-4 py-3 hidden md:table-cell">Wealth Manager</th>
-                                <th scope="col" className="px-4 py-3 hidden md:table-cell">Banking Location</th>
-                                <th scope="col" className="px-4 py-3">Portfolio Value</th>
-                                <th scope="col" className="px-4 py-3 hidden md:table-cell">Mandate (Rate)</th>
-                                <th scope="col" className="px-4 py-3">Projected Gain</th>
-                                <th scope="col" className="px-4 py-3 hidden md:table-cell">Actions</th>
+                                <th scope="col" className="px-3 py-3 sticky-col w-[34%] md:w-auto whitespace-normal break-words">BVI PIC (Legal Owner)</th>
+                                <th scope="col" className="px-3 py-3 hidden md:table-cell whitespace-normal break-words">Wealth Manager</th>
+                                <th scope="col" className="px-3 py-3 hidden md:table-cell whitespace-normal break-words">Banking Location</th>
+                                <th scope="col" className="px-3 py-3 w-[28%] md:w-auto whitespace-normal break-words">Portfolio Value</th>
+                                <th scope="col" className="px-3 py-3 hidden md:table-cell whitespace-normal break-words">Mandate (Rate)</th>
+                                <th scope="col" className="px-3 py-3 w-[38%] md:w-auto whitespace-normal break-words">Projected Gain</th>
+                                <th scope="col" className="px-3 py-3 hidden md:table-cell whitespace-normal break-words">Actions</th>
                             </tr>
                         </thead>
                         <tbody>

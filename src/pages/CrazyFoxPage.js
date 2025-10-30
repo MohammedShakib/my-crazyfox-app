@@ -219,13 +219,13 @@ export default function CrazyFoxPage() {
                     <table className="w-full table-fixed text-sm text-left text-gray-300">
                         <thead className="text-xs text-gray-400 uppercase table-header-bg">
                             <tr>
-                                <th scope="col" className="px-3 py-3 sticky-col w-1/6 md:w-auto whitespace-normal break-words">Year</th>
-                                <th scope="col" className="px-3 py-3 w-1/3 md:w-auto whitespace-normal break-words">Starting Equity (AUM)</th>
+                                <th scope="col" className="px-3 py-3 sticky-col w-[18%] md:w-auto whitespace-normal break-words">Year</th>
+                                <th scope="col" className="px-3 py-3 w-[32%] md:w-auto whitespace-normal break-words">Starting Equity (AUM)</th>
                                 <th scope="col" className="px-3 py-3 hidden md:table-cell">Outstanding Loan</th>
                                 <th scope="col" className="px-3 py-3 hidden md:table-cell">Gross Return %</th>
-                                <th scope="col" className="px-3 py-3 w-1/3 md:w-auto whitespace-normal break-words">Net Profit / Loss</th>
+                                <th scope="col" className="px-3 py-3 w-[30%] md:w-auto whitespace-normal break-words">Net Profit / Loss</th>
                                 <th scope="col" className="px-3 py-3 hidden md:table-cell">Principal Repayment</th>
-                                <th scope="col" className="px-3 py-3 w-auto md:w-auto whitespace-normal break-words">Ending Equity (AUM)</th>
+                                <th scope="col" className="px-3 py-3 w-[20%] md:w-auto whitespace-normal break-words">Ending Equity (AUM)</th>
                                 {/* --- ধাপ ৪: নতুন 'Actions' কলাম --- */}
                                 <th scope="col" className="px-3 py-3 hidden md:table-cell">Actions</th>
                             </tr>
