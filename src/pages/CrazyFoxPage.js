@@ -1,10 +1,33 @@
-import React, { useState, useEffect } from 'react'; // <-- useEffect ইম্পোর্ট করা হয়েছে
+import React, { useEffect, useRef, useState } from 'react'; // <-- useState ইম্পোর্ট করুন
 import { Link } from 'react-router-dom';
-import { FiEdit2, FiSave, FiXCircle } from 'react-icons/fi';
+import { FiEdit2, FiSave, FiXCircle } from 'react-icons/fi'; // <-- আইকন ইম্পোর্ট করুন
 
-// --- (এইখানে simulationData অ্যারেটি ডিলিট করা হয়েছে) ---
+// --- DATA (Years 1-20) ---
+const simulationData = [
+    // ... (আপনার সম্পূর্ণ ডাটা এখানে থাকবে, কোনো পরিবর্তন করা হয়নি) ...
+    { year: 1, startAUM: 30e6, loan: 0, grossReturn: 0.48, netProfit: 11.9e6, repayment: 0, endAUM: 41.9e6 },
+    { year: 2, startAUM: 41.9e6, loan: 0, grossReturn: 0.52, netProfit: 19.29e6, repayment: 0, endAUM: 61.19e6 },
+    { year: 3, startAUM: 261.19e6, loan: 0, grossReturn: 0.55, netProfit: 139.74e6, repayment: 0, endAUM: 400.92e6 }, // Includes +200M injection
+    { year: 4, startAUM: 400.92e6, loan: 0, grossReturn: 0.41, netProfit: 158.36e6, repayment: 0, endAUM: 559.29e6 },
+    { year: 5, startAUM: 559.29e6, loan: 1e9, grossReturn: 0.53, netProfit: 768.03e6, repayment: 0, endAUM: 1.33e9 },
+    { year: 6, startAUM: 1.33e9, loan: 1e9, grossReturn: 2.00, netProfit: 4.58e9, repayment: 0, endAUM: 5.91e9 }, // Supernova year
+    { year: 7, startAUM: 5.91e9, loan: 1e9, grossReturn: -0.10, netProfit: -829.89e6, repayment: 0, endAUM: 5.08e9 }, // Loss year
+    { year: 8, startAUM: 5.08e9, loan: 1e9, grossReturn: 0.48, netProfit: 2.79e9, repayment: 0, endAUM: 7.88e9 },
+    { year: 9, startAUM: 7.88e9, loan: 1e9, grossReturn: 0.35, netProfit: 2.94e9, repayment: 0, endAUM: 10.81e9 },
+    { year: 10, startAUM: 10.81e9, loan: 1e9, grossReturn: 0.29, netProfit: 3.21e9, repayment: 0, endAUM: 14.03e9 },
+    { year: 11, startAUM: 14.03e9, loan: 1e9, grossReturn: 0.42, netProfit: 6.05e9, repayment: 250e6, endAUM: 19.83e9 },
+    { year: 12, startAUM: 19.83e9, loan: 750e6, grossReturn: 0.51, netProfit: 10.16e9, repayment: 250e6, endAUM: 29.74e9 },
+    { year: 13, startAUM: 29.74e9, loan: 500e6, grossReturn: 0.31, netProfit: 8.90e9, repayment: 250e6, endAUM: 38.39e9 },
+    { year: 14, startAUM: 38.39e9, loan: 250e6, grossReturn: -0.12, netProfit: -5.23e9, repayment: 250e6, endAUM: 32.92e9 }, // Loss year
+    { year: 15, startAUM: 32.92e9, loan: 5e9, grossReturn: 0.50, netProfit: 18.22e9, repayment: 0, endAUM: 51.14e9 },
+    { year: 16, startAUM: 51.14e9, loan: 5e9, grossReturn: 0.32, netProfit: 16.94e9, repayment: 500e6, endAUM: 67.58e9 },
+    { year: 17, startAUM: 67.58e9, loan: 4.5e9, grossReturn: 0.24, netProfit: 16.07e9, repayment: 500e6, endAUM: 83.15e9 },
+    { year: 18, startAUM: 83.15e9, loan: 4e9, grossReturn: 0.18, netProfit: 14.24e9, repayment: 500e6, endAUM: 96.89e9 },
+    { year: 19, startAUM: 96.89e9, loan: 3.5e9, grossReturn: 0.13, netProfit: 11.43e9, repayment: 500e6, endAUM: 107.82e9 },
+    { year: 20, startAUM: 107.82e9, loan: 3e9, grossReturn: 0.10, netProfit: 9.31e9, repayment: 500e6, endAUM: 116.63e9 }
+];
 
-// --- ফরম্যাটিং হেল্পার (অপরিবর্তিত) ---
+// --- FORMATTING HELPERS ---
 function formatCurrencyV2(num) {
     if (num === 0) return '$0';
     const sign = num < 0 ? '−' : '+';
@@ -23,127 +46,138 @@ function formatCurrencyForTable(num) {
     return `$${(absNum / 1e3).toFixed(0)} K`;
 }
 
-// --- ক্যালকুলেশন লজিক (অপরিবর্তিত) ---
-const calculateNewNetProfit = (startAUM, loan, grossReturn) => {
-    const totalInvestable = startAUM + loan;
-    const grossProfit = totalInvestable * grossReturn;
-    const mgmtFee = startAUM * 0.02; 
-    const loanInterest = loan * 0.05; 
-    const performanceBase = grossProfit - mgmtFee - loanInterest;
-    const performanceFee = Math.max(0, performanceBase * 0.20); 
-    const netProfit = grossProfit - mgmtFee - loanInterest - performanceFee;
-    return netProfit;
-};
-
 // --- React Component ---
 export default function CrazyFoxPage() {
     
-    // --- State এখন ডাটাবেস লোড করার জন্য পরিবর্তিত ---
-    const [simData, setSimData] = useState([]);
-    const [isLoading, setIsLoading] = useState(true); // লোডিং স্টেট
+    // --- ধাপ ১: State তৈরি করা ---
+    // স্ট্যাটিক ডেটাকে state-এ রূপান্তর করা হলো
+    const [simData, setSimData] = useState(simulationData);
+    // কোনটি এডিট হচ্ছে তা ট্র্যাক করার জন্য
     const [editRowId, setEditRowId] = useState(null); 
-    const [editGrossReturn, setEditGrossReturn] = useState(0);
+    // ইনপুট ফিল্ডের ভ্যালু রাখার জন্য
+    const [editGrossReturn, setEditGrossReturn] = useState('0');
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
+    const inputRef = useRef(null);
 
-    // --- নতুন: useEffect - ডেটা লোড করার জন্য ---
     useEffect(() => {
-      async function fetchData() {
-        try {
-          const response = await fetch('/api/getCrazyFoxData');
-          const data = await response.json();
-          // ডাটাবেস থেকে আসা string ডেটাগুলোকে float/number-এ কনভার্ট করা
-          const numericData = data.map(row => ({
-            ...row,
-            start_aum: parseFloat(row.start_aum),
-            loan: parseFloat(row.loan),
-            gross_return: parseFloat(row.gross_return),
-            net_profit: parseFloat(row.net_profit),
-            repayment: parseFloat(row.repayment),
-            end_aum: parseFloat(row.end_aum),
-          }));
-          setSimData(numericData);
-          setIsLoading(false);
-        } catch (error) {
-          console.error("Failed to fetch data:", error);
-          setIsLoading(false);
+        if (isModalOpen && inputRef.current) {
+            inputRef.current.focus();
+            inputRef.current.select();
         }
-      }
-      fetchData();
-    }, []); 
+    }, [isModalOpen]);
 
-    // --- UPDATED: handleSave function - এখন API-তে সেভ করবে ---
-    const handleSave = async (changedYear, newGrossReturn) => {
-        let recalculatedData = [];
+    useEffect(() => {
+        const updateIsMobile = () => setIsMobile(window.innerWidth < 768);
+        updateIsMobile();
+        window.addEventListener('resize', updateIsMobile);
+        return () => window.removeEventListener('resize', updateIsMobile);
+    }, []);
 
-        // ১. State-এ ডেটা ক্যালকুলেট করা
+    // --- ধাপ ২: Recalculation Logic ---
+    // এটি একটি কাল্পনিক কিন্তু বাস্তবসম্মত "2 and 20" ফি মডেল (2% ম্যানেজমেন্ট ফি, 20% পারফরম্যান্স ফি)
+    // এবং 5% লোন ইন্টারেস্ট ধরে গণনা করা হয়েছে।
+    const calculateNewNetProfit = (startAUM, loan, grossReturn) => {
+        const totalInvestable = startAUM + loan;
+        const grossProfit = totalInvestable * grossReturn;
+        
+        // ফি গণনা (Institutional Model)
+        const mgmtFee = startAUM * 0.02; // 2% ম্যানেজমেন্ট ফি (AUM-এর উপর)
+        const loanInterest = loan * 0.05; // 5% লোন ইন্টারেস্ট (ধরে নেওয়া)
+        
+        // পারফরম্যান্স ফি (High-water mark ছাড়া সহজ গণনা)
+        const performanceBase = grossProfit - mgmtFee - loanInterest;
+        const performanceFee = Math.max(0, performanceBase * 0.20); // 20% পারফরম্যান্স ফি
+        
+        const netProfit = grossProfit - mgmtFee - loanInterest - performanceFee;
+        return netProfit;
+    };
+
+    // সেভ বাটনে ক্লিক করলে এই ফাংশনটি কাজ করবে
+    const handleSave = (changedYear, newGrossReturn) => {
+        if (Number.isNaN(newGrossReturn)) {
+            return;
+        }
+
         setSimData(prevData => {
+            // সম্পূর্ণ ডেটার একটি নতুন কপি তৈরি করুন
             const newData = structuredClone(prevData); 
             const startIndex = newData.findIndex(row => row.year === changedYear);
 
+            // যে বছর পরিবর্তন হয়েছে, সেখান থেকে শেষ পর্যন্ত লুপ চালান
             for (let i = startIndex; i < newData.length; i++) {
                 const row = newData[i];
                 
-                let currentStartAUM = (i === 0) ? 30e6 : newData[i - 1].end_aum;
+                // 1. Start AUM আপডেট করুন (আগের বছরের End AUM)
+                // বিশেষ দ্রষ্টব্য: বছর ৩-এর 200M ইনজেকশন লজিক এখানে যুক্ত করা হয়েছে
+                let currentStartAUM = (i === 0) ? 30e6 : newData[i - 1].endAUM;
                 if (row.year === 3) {
                     currentStartAUM += 200e6; 
                 }
-                row.start_aum = currentStartAUM;
+                row.startAUM = currentStartAUM;
 
+                // 2. Gross Return আপডেট করুন (শুধু পরিবর্তিত বছরের জন্য)
                 if (row.year === changedYear) {
-                    row.gross_return = newGrossReturn;
+                    row.grossReturn = newGrossReturn;
                 }
 
-                const newNetProfit = calculateNewNetProfit(row.start_aum, row.loan, row.gross_return);
-                row.net_profit = newNetProfit;
-                row.end_aum = row.start_aum + newNetProfit - row.repayment;
+                // 3. Net Profit ও End AUM রি-ক্যালকুলেট করুন
+                const newNetProfit = calculateNewNetProfit(row.startAUM, row.loan, row.grossReturn);
+                row.netProfit = newNetProfit;
+                row.endAUM = row.startAUM + newNetProfit - row.repayment;
             }
             
-            recalculatedData = newData; // সেভ করার জন্য ডেটা রাখা হলো
-            return newData; // State আপডেট
+            return newData;
         });
 
-        // ২. নতুন: সম্পূর্ণ recalculated ডেটা অ্যারেটি API-এর মাধ্যমে ডাটাবেসে POST করা
-        try {
-          await fetch('/api/updateCrazyFoxData', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(recalculatedData),
-          });
-        } catch (error) {
-          console.error("Failed to save data:", error);
-          alert("Data could not be saved to database. Check server logs.");
-        }
-
         setEditRowId(null);
+        setIsModalOpen(false);
+        setEditGrossReturn('0');
     };
 
     const handleEdit = (row) => {
         setEditRowId(row.year);
-        // ডাটাবেস কলামের নাম (snake_case) ব্যবহার
-        setEditGrossReturn((row.gross_return * 100).toFixed(0)); 
+        setEditGrossReturn((row.grossReturn * 100).toFixed(0));
+        setIsModalOpen(true);
     };
 
     const handleCancel = () => {
         setEditRowId(null);
+        setIsModalOpen(false);
+        setEditGrossReturn('0');
     };
 
-    // --- ডাইনামিক সামারি ---
-    const totalNetProfit = simData.reduce((acc, row) => acc + row.net_profit, 0);
-    const endingEquity = simData.length > 0 ? simData[simData.length - 1].end_aum : 0;
+    const handleGrossReturnCellClick = (row) => {
+        if (isMobile) {
+            handleEdit(row);
+        }
+    };
 
-    // --- নতুন: লোডিং স্ক্রিন ---
-    if (isLoading) {
-      return (
-        <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-gray-900 via-[#030712] to-gray-900 text-white flex justify-center items-center">
-          <h2 className="text-2xl font-semibold">Loading Database...</h2>
-        </div>
-      );
-    }
+    const handleModalKeyDown = (event) => {
+        if (event.key === 'Enter') {
+            if (event.target.tagName !== 'INPUT') {
+                return;
+            }
+            event.preventDefault();
+            if (editRowId !== null) {
+                handleSave(editRowId, parseFloat(editGrossReturn) / 100);
+            }
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            handleCancel();
+        }
+    };
+
+    // --- ধাপ ৩: সামারি কার্ডকে ডাইনামিক করা ---
+    // simData (state) থেকে মোট লাভ ও শেষ ইক্যুইটি গণনা করুন
+    const totalNetProfit = simData.reduce((acc, row) => acc + row.netProfit, 0);
+    const endingEquity = simData.length > 0 ? simData[simData.length - 1].endAUM : 0;
 
     return (
         <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-gray-900 via-[#030712] to-gray-900">
             <div className="max-w-7xl mx-auto">
                 
-                {/* Header (অপরিবর্তিত) */}
+                {/* Header (No change) */}
                 <header className="flex items-center justify-between mb-10">
                     <Link to="/" className="flex items-center text-sm text-gray-400 hover:text-blue-400 transition-colors">
                         <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
@@ -155,10 +189,11 @@ export default function CrazyFoxPage() {
                     </div>
                 </header>
 
-                {/* সামারি কার্ড (এখন state থেকে চলছে) */}
+                {/* Summary Card (এখন state-এর উপর নির্ভরশীল) */}
                 <div className="card p-6 md:p-8 mb-10 shadow-lg shadow-blue-900/10 border border-gray-700/50">
                     <h2 className="text-xl font-semibold text-white mb-6">20-Year Performance Summary</h2>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-gray-300">
+                        {/* ... (Summary Item 1 & 2 unchanged) ... */}
                         <div className="card p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
                             <div className="text-sm text-gray-400 mb-1">Starting Capital (Y1)</div>
                             <div className="text-2xl lg:text-3xl font-bold text-white">{formatCurrencyForTable(30e6)}</div>
@@ -167,6 +202,7 @@ export default function CrazyFoxPage() {
                             <div className="text-sm text-gray-400 mb-1">Total Equity Injected</div>
                             <div className="text-2xl lg:text-3xl font-bold text-white">{formatCurrencyForTable(200e6)}</div>
                         </div>
+                        {/* (আইটেম ৩ ও ৪ এখন ডাইনামিক) */}
                         <div className="card p-4 bg-gray-800/50 border border-green-500/30 rounded-lg">
                             <div className="text-sm text-gray-400 mb-1">Total Net Profit</div>
                             <div className="text-2xl lg:text-3xl font-bold profit">{formatCurrencyV2(totalNetProfit)}</div>
@@ -178,69 +214,63 @@ export default function CrazyFoxPage() {
                     </div>
                 </div>
                 
-                {/* সিমুলেশন টেবিল (এখন state থেকে চলছে) */}
-                <div className="overflow-x-auto card shadow-lg shadow-blue-900/10 border border-gray-700/50">
-                    <table className="w-full text-sm text-left text-gray-300">
+                {/* Simulation Table Card */}
+                <div className="card shadow-lg shadow-blue-900/10 border border-gray-700/50 overflow-hidden md:overflow-x-auto">
+                    <table className="w-full table-fixed text-sm text-left text-gray-300">
                         <thead className="text-xs text-gray-400 uppercase table-header-bg">
                             <tr>
-                                <th scope="col" className="px-6 py-4 sticky-col">Year</th>
-                                <th scope="col" className="px-6 py-4">Starting Equity (AUM)</th>
-                                <th scope="col" className="px-6 py-4">Outstanding Loan</th>
-                                <th scope="col" className="px-6 py-4">Gross Return %</th>
-                                <th scope="col" className="px-6 py-4">Net Profit / Loss</th>
-                                <th scope="col" className="px-6 py-4">Principal Repayment</th>
-                                <th scope="col" className="px-6 py-4">Ending Equity (AUM)</th>
-                                <th scope="col" className="px-6 py-4">Actions</th>
+                                <th scope="col" className="px-3 py-3 sticky-col w-[18%] md:w-auto whitespace-normal break-words">Year</th>
+                                <th scope="col" className="px-3 py-3 w-[32%] md:w-auto whitespace-normal break-words">Starting Equity (AUM)</th>
+                                <th scope="col" className="px-3 py-3 hidden md:table-cell">Outstanding Loan</th>
+                                <th scope="col" className="px-3 py-3 hidden md:table-cell">Gross Return %</th>
+                                <th scope="col" className="px-3 py-3 w-[30%] md:w-auto whitespace-normal break-words">Net Profit / Loss</th>
+                                <th scope="col" className="px-3 py-3 hidden md:table-cell">Principal Repayment</th>
+                                <th scope="col" className="px-3 py-3 w-[20%] md:w-auto whitespace-normal break-words">Ending Equity (AUM)</th>
+                                {/* --- ধাপ ৪: নতুন 'Actions' কলাম --- */}
+                                <th scope="col" className="px-3 py-3 hidden md:table-cell">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
+                            {/* --- ধাপ ৫: simData (state) ম্যাপ করুন --- */}
                             {simData.map((row) => {
-                                const isEditing = editRowId === row.year; 
-                                const netProfitClass = row.net_profit >= 0 ? 'profit' : 'loss';
-                                let grossReturnClass = row.gross_return >= 0 ? 'text-gray-300' : 'loss font-semibold';
+                                const isEditing = editRowId === row.year; // এই সারিটি কি এডিট মোডে আছে?
+
+                                const netProfitClass = row.netProfit >= 0 ? 'profit' : 'loss';
+                                let grossReturnClass = row.grossReturn >= 0 ? 'text-gray-300' : 'loss font-semibold';
                                 if (row.year === 6) { grossReturnClass = 'text-yellow-300 font-bold'; }
+                                
                                 let rowClass = `border-b table-row-border transition-colors duration-200 hover:bg-gray-800/50`;
                                 if (row.year === 6) { rowClass += ' supernova'; }
+                                if (isEditing) { rowClass += ' ring-2 ring-blue-400/60'; }
 
                                 return (
                                     <tr key={row.year} className={rowClass}>
-                                        <td className="px-6 py-4 font-medium text-gray-100 sticky-col">{row.year}</td>
-                                        {/* snake_case কলামের নাম ব্যবহার করা হয়েছে */}
-                                        <td className="px-6 py-4">{formatCurrencyForTable(row.start_aum)}</td>
-                                        <td className="px-6 py-4 highlight-loan">{formatCurrencyForTable(row.loan)}</td>
+                                        <td className="px-3 py-3 font-medium text-gray-100 sticky-col">{row.year}</td>
+                                        <td className="px-3 py-3 whitespace-normal break-words">{formatCurrencyForTable(row.startAUM)}</td>
+                                        <td className="px-3 py-3 hidden md:table-cell highlight-loan">{formatCurrencyForTable(row.loan)}</td>
+
+                                        <td className={`px-3 py-3 hidden md:table-cell ${grossReturnClass}`}>{(row.grossReturn * 100).toFixed(0)}%</td>
                                         
-                                        <td className={`px-6 py-4 ${grossReturnClass}`}>
-                                            {isEditing ? (
-                                                <input 
-                                                    type="number"
-                                                    value={editGrossReturn}
-                                                    onChange={(e) => setEditGrossReturn(e.target.value)}
-                                                    className="w-20 bg-gray-700 text-white p-1 rounded border border-blue-500"
-                                                />
-                                            ) : (
-                                                <span>{(row.gross_return * 100).toFixed(0)}%</span>
-                                            )}
+                                        {/* --- ধাপ ৬: Gross Return সেল (ইনপুট ফিল্ড) --- */}
+                                        <td className={`px-3 py-3 font-semibold whitespace-normal break-words ${netProfitClass}`}>
+                                            <div
+                                                className={`${isMobile ? 'cursor-pointer' : ''}`}
+                                                onClick={() => handleGrossReturnCellClick(row)}
+                                                role={isMobile ? 'button' : undefined}
+                                                tabIndex={isMobile ? 0 : -1}
+                                            >
+                                                <span>{formatCurrencyV2(row.netProfit)}</span>
+                                                <span className="block text-xs text-gray-400 md:hidden">({(row.grossReturn * 100).toFixed(0)}%)</span>
+                                            </div>
                                         </td>
+                                        <td className="px-3 py-3 hidden md:table-cell repayment">{formatCurrencyForTable(row.repayment)}</td>
+                                        <td className="px-3 py-3 font-bold text-white whitespace-normal break-words">{formatCurrencyForTable(row.endAUM)}</td>
                                         
-                                        <td className={`px-6 py-4 font-semibold ${netProfitClass}`}>{formatCurrencyV2(row.net_profit)}</td>
-                                        <td className="px-6 py-4 repayment">{formatCurrencyForTable(row.repayment)}</td>
-                                        <td className="px-6 py-4 font-bold text-white">{formatCurrencyForTable(row.end_aum)}</td>
-                                        
-                                        <td className="px-6 py-4">
-                                            {isEditing ? (
-                                                <div className="flex space-x-3">
-                                                    <button onClick={() => handleSave(row.year, parseFloat(editGrossReturn) / 100)} className="text-green-400 hover:text-green-300">
-                                                        <FiSave size={18} />
-                                                    </button>
-                                                    <button onClick={handleCancel} className="text-red-400 hover:text-red-300">
-                                                        <FiXCircle size={18} />
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <button onClick={() => handleEdit(row)} className="text-blue-400 hover:text-blue-300">
-                                                    <FiEdit2 size={18} />
-                                                </button>
-                                            )}
+                                        {/* --- ধাপ ৭: Action বাটন সেল --- */}
+                                        <td className="px-3 py-3 hidden md:table-cell">
+                                            <button onClick={() => handleEdit(row)} className="text-blue-400 hover:text-blue-300">
+                                                <FiEdit2 size={18} />
+                                            </button>
                                         </td>
                                     </tr>
                                 );
@@ -249,8 +279,59 @@ export default function CrazyFoxPage() {
                     </table>
                 </div>
 
-                {/* Core Assumptions Card (অপরিবর্তিত) */}
+                {isModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+                        <div
+                            className="relative w-full max-w-md rounded-xl border border-gray-700 bg-gray-900 p-6 shadow-xl"
+                            onKeyDown={handleModalKeyDown}
+                            tabIndex={-1}
+                        >
+                            <button
+                                type="button"
+                                onClick={handleCancel}
+                                className="absolute right-3 top-3 text-gray-400 transition-colors hover:text-red-400"
+                                aria-label="Cancel editing"
+                            >
+                                <FiXCircle size={20} />
+                            </button>
+                            <h3 className="text-xl font-semibold text-white">Edit Gross Return</h3>
+                            <p className="mt-1 text-sm text-gray-400">Adjust the gross return for year {editRowId}.</p>
+                            <label className="mt-4 block text-sm font-medium text-gray-300" htmlFor="gross-return-input">
+                                Gross Return (%)
+                            </label>
+                            <input
+                                id="gross-return-input"
+                                ref={inputRef}
+                                type="number"
+                                value={editGrossReturn}
+                                onChange={(e) => setEditGrossReturn(e.target.value)}
+                                className="mt-2 w-full rounded-md border border-blue-500 bg-gray-800 p-3 text-white outline-none focus:ring-2 focus:ring-blue-400"
+                            />
+                            <p className="mt-2 text-xs text-gray-500">Press Enter to save or Esc to cancel.</p>
+                            <div className="mt-6 flex justify-end space-x-3">
+                                <button
+                                    type="button"
+                                    onClick={handleCancel}
+                                    className="rounded-md border border-gray-600 px-4 py-2 text-sm text-gray-300 transition-colors hover:bg-gray-800"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleSave(editRowId, parseFloat(editGrossReturn) / 100)}
+                                    className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                >
+                                    <FiSave size={16} className="mr-2" />
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Core Assumptions Card (No change) */}
                 <div className="card p-6 mt-10 shadow-lg shadow-blue-900/10 border border-gray-700/50">
+                    {/* ... (আপনার Assumptions কার্ডের সব কোড এখানে থাকবে) ... */}
                     <h2 className="text-xl font-semibold text-white mb-6">Core Assumptions</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-gray-300">
                         <div className="flex items-center space-x-3 p-3 bg-gray-800/50 rounded-lg">
@@ -280,3 +361,7 @@ export default function CrazyFoxPage() {
         </div>
     );
 }
+
+
+
+
