@@ -2,17 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiEdit2, FiSave, FiXCircle, FiGrid, FiCopy } from 'react-icons/fi';
 
-// --- ধাপ ১: প্রাথমিক ডেটা সেটআপ ---
-const initialPortfolio = [
-    { id: 1, pic: 'Rahman Matterhorn Ltd.', manager: 'UBS', location: 'Switzerland', value: 142857142, rate: 0.060, mandate: 'Stable Growth' },
-    { id: 2, pic: 'Rahman Sierra Ltd.', manager: 'Goldman Sachs', location: 'USA', value: 142857142, rate: 0.075, mandate: 'Balanced Growth' },
-    { id: 3, pic: 'Rahman Concorde Ltd.', manager: 'BNP Paribas', location: 'France', value: 142857142, rate: 0.075, mandate: 'Balanced Growth' },
-    { id: 4, pic: 'Rahman Suhail Ltd.', manager: 'LGT', location: 'UAE', value: 142857142, rate: 0.090, mandate: 'Aggressive Growth' },
-    { id: 5, pic: 'Rahman Liffey Ltd.', manager: 'Goodbody', location: 'Ireland', value: 142857142, rate: 0.060, mandate: 'Stable Growth' },
-    { id: 6, pic: 'Rahman Merlion Ltd.', manager: 'DBS Private Bank', location: 'Singapore', value: 142857142, rate: 0.075, mandate: 'Balanced Growth' },
-    { id: 7, pic: 'Rahman Andes Ltd.', manager: 'BTG Pactual', location: 'Brazil', value: 142857142, rate: 0.090, mandate: 'Aggressive Growth' },
-];
-
 const RAHMAN_ENDPOINTS = {
     fetch: '/api/getRahmanTrustData',
     update: '/api/updateRahmanTrustData'
@@ -66,14 +55,23 @@ function formatMillions(num) {
 export default function RahmanTrustPage() {
     
     // --- State তৈরি করা ---
-    const [portfolioData, setPortfolioData] = useState(initialPortfolio);
+    const [portfolioData, setPortfolioData] = useState([]);
     const [editRowId, setEditRowId] = useState(null);
     const [editRate, setEditRate] = useState('0');
     const [editValue, setEditValue] = useState('0');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const [editPicName, setEditPicName] = useState('');
+    const [feedback, setFeedback] = useState(null);
     const inputRef = useRef(null);
+
+    useEffect(() => {
+        if (!feedback) {
+            return undefined;
+        }
+        const timer = setTimeout(() => setFeedback(null), 4000);
+        return () => clearTimeout(timer);
+    }, [feedback]);
 
     useEffect(() => {
         let isMounted = true;
@@ -140,18 +138,45 @@ export default function RahmanTrustPage() {
             });
             if (!response.ok) {
                 const message = await response.text();
-                throw new Error(message || 'Request failed');
+                throw new Error(message || `Request failed with status ${response.status}`);
             }
             const payload = await response.json();
-            if (Array.isArray(payload)) {
-                setPortfolioData(payload.map(mapRahmanFromApi));
+            if (!Array.isArray(payload)) {
+                return {
+                    success: false,
+                    message: 'Unexpected response from database.',
+                    synced: false
+                };
             }
+
+            const normalized = payload.map(mapRahmanFromApi);
+            setPortfolioData(normalized);
+
+            const updatedDoc = normalized.find((doc) => doc.id === row.id);
+            if (updatedDoc && updatedDoc.value === row.value && updatedDoc.rate === row.rate) {
+                return {
+                    success: true,
+                    message: 'MongoDB confirmed the updated values.',
+                    synced: true
+                };
+            }
+
+            return {
+                success: false,
+                message: 'MongoDB saved different values. Please refresh and verify.',
+                synced: true
+            };
         } catch (error) {
             console.error('Unable to persist Rahman Trust updates', error);
+            return {
+                success: false,
+                message: error.message || 'Failed to update MongoDB.',
+                synced: false
+            };
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (editRowId === null) {
             return;
         }
@@ -159,34 +184,59 @@ export default function RahmanTrustPage() {
         const parsedRate = parseFloat(editRate);
         const parsedValueMillions = parseFloat(editValue);
         if (Number.isNaN(parsedRate) || Number.isNaN(parsedValueMillions)) {
+            setFeedback({
+                type: 'error',
+                title: 'Invalid Numbers',
+                message: 'Please enter valid rate and value before saving.'
+            });
             return;
         }
 
         const newRate = parsedRate / 100;
         const newValue = parsedValueMillions * 1e6;
 
-        let updatedRow = null;
-
-        setPortfolioData(prevData =>
-            prevData.map(row => {
-                if (row.id !== editRowId) {
-                    return row;
-                }
-                const nextRow = { ...row, rate: newRate, value: newValue };
-                updatedRow = nextRow;
-                return nextRow;
-            })
-        );
-
-        if (updatedRow) {
-            void persistRahmanTrustRow(updatedRow);
+        const existingRow = portfolioData.find((row) => row.id === editRowId);
+        if (!existingRow) {
+            setFeedback({
+                type: 'error',
+                title: 'Row Not Found',
+                message: 'Could not locate the selected entry. Please refresh and try again.'
+            });
+            return;
         }
 
-        setIsModalOpen(false);
-        setEditRowId(null);
-        setEditRate('0');
-        setEditValue('0');
-        setEditPicName('');
+        const previousRow = { ...existingRow };
+        const updatedRow = { ...existingRow, rate: newRate, value: newValue };
+
+        setPortfolioData(prevData =>
+            prevData.map(row => (row.id === editRowId ? updatedRow : row))
+        );
+
+        const result = await persistRahmanTrustRow(updatedRow);
+
+        if (result.success) {
+            setIsModalOpen(false);
+            setEditRowId(null);
+            setEditRate('0');
+            setEditValue('0');
+            setEditPicName('');
+            setFeedback({
+                type: 'success',
+                title: 'Database Updated',
+                message: result.message || 'MongoDB confirmed the new values.'
+            });
+        } else {
+            if (!result.synced) {
+                setPortfolioData(prevData =>
+                    prevData.map(row => (row.id === editRowId ? previousRow : row))
+                );
+            }
+            setFeedback({
+                type: 'error',
+                title: 'Update Failed',
+                message: result.message || 'MongoDB did not accept the changes.'
+            });
+        }
     };
 
     const handleMandateCellClick = (row) => {
@@ -201,7 +251,7 @@ export default function RahmanTrustPage() {
                 return;
             }
             event.preventDefault();
-            handleSave();
+            void handleSave();
         } else if (event.key === 'Escape') {
             event.preventDefault();
             handleCancel();
@@ -462,6 +512,32 @@ export default function RahmanTrustPage() {
                         </p>
                     </div>
                 </div>
+
+            {feedback && (
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center px-4 pointer-events-auto bg-slate-950/80 backdrop-blur-2xl backdrop-brightness-[0.65] transition-opacity duration-200">
+                    <div className="pointer-events-none flex items-center justify-center">
+                        <div
+                            className={`pointer-events-auto px-6 py-4 rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)] text-white backdrop-blur-lg ${feedback.type === 'success'
+                                ? 'bg-emerald-600/95 border border-emerald-300/50'
+                                : 'bg-red-600/95 border border-red-300/50'
+                            }`}
+                        >
+                            <p className="text-lg font-semibold">
+                                {feedback.title}
+                            </p>
+                            <p className="mt-1 text-sm text-gray-100/90 max-w-md">
+                                {feedback.message}
+                            </p>
+                            <button
+                                className="mt-3 inline-flex items-center rounded-md bg-white/20 px-3 py-1 text-sm font-medium hover:bg-white/30 transition"
+                                onClick={() => setFeedback(null)}
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             </div>
         </div>
