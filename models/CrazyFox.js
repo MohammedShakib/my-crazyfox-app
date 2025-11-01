@@ -1,5 +1,5 @@
 // models/CrazyFox.js
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const CrazyFoxSchema = new mongoose.Schema({
   year: { type: Number, required: true, unique: true },
@@ -11,4 +11,4 @@ const CrazyFoxSchema = new mongoose.Schema({
   end_aum: Number
 });
 
-export default mongoose.models.CrazyFox || mongoose.model('CrazyFox', CrazyFoxSchema, 'crazyfox_sim_data');
+module.exports = mongoose.models.CrazyFox || mongoose.model('CrazyFox', CrazyFoxSchema, 'crazyfox_sim_data');

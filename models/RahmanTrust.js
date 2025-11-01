@@ -1,5 +1,5 @@
 // models/RahmanTrust.js
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const RahmanTrustSchema = new mongoose.Schema({
   id: { type: Number, required: true, unique: true },
@@ -11,4 +11,4 @@ const RahmanTrustSchema = new mongoose.Schema({
   mandate: { type: String, required: true }
 });
 
-export default mongoose.models.RahmanTrust || mongoose.model('RahmanTrust', RahmanTrustSchema, 'rahman_trust_data');
+module.exports = mongoose.models.RahmanTrust || mongoose.model('RahmanTrust', RahmanTrustSchema, 'rahman_trust_data');
