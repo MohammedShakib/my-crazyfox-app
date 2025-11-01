@@ -1,28 +1,30 @@
-import { sql } from '@vercel/postgres';
+// api/updateRahmanTrustData.js
+import dbConnect from '../../lib/dbConnect';
+import RahmanTrust from '../../models/RahmanTrust';
 
 export default async function handler(req, res) {
-  // শুধু 'POST' রিকোয়েস্ট গ্রহণ করা হবে
   if (req.method !== 'POST') {
     return res.status(405).send('Method Not Allowed');
   }
 
   try {
-    const { id, rate } = req.body; // React থেকে পাঠানো 'id' এবং নতুন 'rate'
-    
+    await dbConnect(); // Connect to DB
+
+    const { id, rate } = req.body;
     if (id === undefined || rate === undefined) {
       return res.status(400).send('Missing id or rate');
     }
 
-    // নির্দিষ্ট 'id'-এর সারিটি আপডেট করা হচ্ছে
-    await sql`
-      UPDATE rahman_trust_data
-      SET rate = ${rate}
-      WHERE id = ${id};
-    `;
+    // SQL: UPDATE rahman_trust_data SET rate = ${rate} WHERE id = ${id};
+    await RahmanTrust.findOneAndUpdate(
+      { id: id },    // Find condition (WHERE)
+      { rate: rate } // Update (SET)
+    );
+
+    // Re-fetch updated data as per original logic
+    const data = await RahmanTrust.find({}).sort({ id: 'asc' });
     
-    // আপডেটের পর, নতুন সব ডেটা আবার SELECT করে React-এ পাঠানো হচ্ছে
-    const { rows } = await sql`SELECT * FROM rahman_trust_data ORDER BY id ASC;`;
-    res.status(200).json(rows); // আপডেটেড লিস্ট পাঠানো হচ্ছে
+    res.status(200).json(data);
 
   } catch (error) {
     res.status(500).json({ error: error.message });
