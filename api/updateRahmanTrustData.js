@@ -1,8 +1,9 @@
 // api/updateRahmanTrustData.js
-import dbConnect from '../../lib/dbConnect';
-import RahmanTrust from '../../models/RahmanTrust';
+const dbConnect = require('../../lib/dbConnect');
+const rahmanTrustModule = require('../../models/RahmanTrust');
+const RahmanTrust = rahmanTrustModule.default || rahmanTrustModule;
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).send('Method Not Allowed');
   }
@@ -10,7 +11,7 @@ export default async function handler(req, res) {
   try {
     await dbConnect(); // Connect to DB
 
-    const { id, rate, value, pic, manager, location, mandate } = req.body;
+    const { id, rate, value, pic, manager, location, mandate } = req.body || {};
     if (id === undefined) {
       return res.status(400).send('Missing id');
     }
@@ -28,7 +29,7 @@ export default async function handler(req, res) {
 
     // SQL: UPDATE rahman_trust_data SET rate = ${rate} WHERE id = ${id};
     await RahmanTrust.findOneAndUpdate(
-      { id: id },    // Find condition (WHERE)
+      { id },    // Find condition (WHERE)
       { $set: update }, // Update (SET)
       { upsert: true }
     );
@@ -41,4 +42,4 @@ export default async function handler(req, res) {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-}
+};

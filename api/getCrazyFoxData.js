@@ -1,8 +1,9 @@
 // api/getCrazyFoxData.js
-import dbConnect from '../../lib/dbConnect';
-import CrazyFox from '../../models/CrazyFox';
+const dbConnect = require('../../lib/dbConnect');
+const crazyFoxModule = require('../../models/CrazyFox');
+const CrazyFox = crazyFoxModule.default || crazyFoxModule;
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   try {
     await dbConnect(); // Connect to DB
 
@@ -13,4 +14,4 @@ export default async function handler(req, res) {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-}
+};

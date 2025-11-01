@@ -1,8 +1,9 @@
 // api/getRahmanTrustData.js
-import dbConnect from '../../lib/dbConnect';
-import RahmanTrust from '../../models/RahmanTrust';
+const dbConnect = require('../../lib/dbConnect');
+const rahmanTrustModule = require('../../models/RahmanTrust');
+const RahmanTrust = rahmanTrustModule.default || rahmanTrustModule;
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   try {
     await dbConnect(); // Connect to DB
 
@@ -13,4 +14,4 @@ export default async function handler(req, res) {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-}
+};
