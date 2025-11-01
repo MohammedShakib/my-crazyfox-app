@@ -27,6 +27,31 @@ const simulationData = [
     { year: 20, startAUM: 107.82e9, loan: 3e9, grossReturn: 0.10, netProfit: 9.31e9, repayment: 500e6, endAUM: 116.63e9 }
 ];
 
+const CRAZYFOX_ENDPOINTS = {
+    fetch: '/api/getCrazyFoxData',
+    update: '/api/updateCrazyFoxData'
+};
+
+const mapCrazyFoxFromApi = (doc) => ({
+    year: Number(doc.year),
+    startAUM: Number(doc.start_aum ?? doc.startAUM ?? 0),
+    loan: Number(doc.loan ?? 0),
+    grossReturn: Number(doc.gross_return ?? doc.grossReturn ?? 0),
+    netProfit: Number(doc.net_profit ?? doc.netProfit ?? 0),
+    repayment: Number(doc.repayment ?? 0),
+    endAUM: Number(doc.end_aum ?? doc.endAUM ?? 0)
+});
+
+const mapCrazyFoxToApi = (row) => ({
+    year: row.year,
+    start_aum: row.startAUM,
+    loan: row.loan,
+    gross_return: row.grossReturn,
+    net_profit: row.netProfit,
+    repayment: row.repayment,
+    end_aum: row.endAUM
+});
+
 // --- FORMATTING HELPERS ---
 function formatCurrencyV2(num) {
     if (num === 0) return '$0';
@@ -59,6 +84,31 @@ export default function CrazyFoxPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const inputRef = useRef(null);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadCrazyFoxData = async () => {
+            try {
+                const response = await fetch(CRAZYFOX_ENDPOINTS.fetch);
+                if (!response.ok) {
+                    throw new Error(`Failed to load CrazyFox data: ${response.status}`);
+                }
+                const payload = await response.json();
+                if (isMounted && Array.isArray(payload)) {
+                    setSimData(payload.map(mapCrazyFoxFromApi));
+                }
+            } catch (error) {
+                console.error('Unable to fetch CrazyFox data from API', error);
+            }
+        };
+
+        loadCrazyFoxData();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     useEffect(() => {
         if (isModalOpen && inputRef.current) {
@@ -94,10 +144,32 @@ export default function CrazyFoxPage() {
     };
 
     // সেভ বাটনে ক্লিক করলে এই ফাংশনটি কাজ করবে
+    const persistCrazyFoxData = async (rows) => {
+        try {
+            const response = await fetch(CRAZYFOX_ENDPOINTS.update, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(rows.map(mapCrazyFoxToApi))
+            });
+            if (!response.ok) {
+                const message = await response.text();
+                throw new Error(message || 'Request failed');
+            }
+            const payload = await response.json();
+            if (Array.isArray(payload)) {
+                setSimData(payload.map(mapCrazyFoxFromApi));
+            }
+        } catch (error) {
+            console.error('Unable to persist CrazyFox updates', error);
+        }
+    };
+
     const handleSave = (changedYear, newGrossReturn) => {
         if (Number.isNaN(newGrossReturn)) {
             return;
         }
+
+        let updatedRows = null;
 
         setSimData(prevData => {
             // সম্পূর্ণ ডেটার একটি নতুন কপি তৈরি করুন
@@ -127,8 +199,13 @@ export default function CrazyFoxPage() {
                 row.endAUM = row.startAUM + newNetProfit - row.repayment;
             }
             
+            updatedRows = newData;
             return newData;
         });
+
+        if (updatedRows) {
+            void persistCrazyFoxData(updatedRows);
+        }
 
         setEditRowId(null);
         setIsModalOpen(false);

@@ -22,6 +22,7 @@ export default async function handler(req, res) {
         filter: { year: row.year }, // WHERE year = ...
         update: {
           $set: { // SET ...
+            year: row.year,
             start_aum: row.start_aum,
             loan: row.loan,
             gross_return: row.gross_return,
@@ -34,9 +35,13 @@ export default async function handler(req, res) {
       }
     }));
 
-    await CrazyFox.bulkWrite(operations); // Execute all operations
+    if (operations.length > 0) {
+      await CrazyFox.bulkWrite(operations); // Execute all operations
+    }
 
-    res.status(200).json({ message: 'Simulation updated successfully' });
+    const data = await CrazyFox.find({}).sort({ year: 'asc' });
+
+    res.status(200).json(data);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

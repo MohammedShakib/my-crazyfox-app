@@ -3,9 +3,12 @@ import mongoose from 'mongoose';
 
 const RahmanTrustSchema = new mongoose.Schema({
   id: { type: Number, required: true, unique: true },
-  entity_name: String,
-  rate: Number
-  // Add other columns as needed
+  pic: { type: String, required: true },
+  manager: { type: String, required: true },
+  location: { type: String, required: true },
+  value: { type: Number, required: true },
+  rate: { type: Number, required: true },
+  mandate: { type: String, required: true }
 });
 
 export default mongoose.models.RahmanTrust || mongoose.model('RahmanTrust', RahmanTrustSchema, 'rahman_trust_data');

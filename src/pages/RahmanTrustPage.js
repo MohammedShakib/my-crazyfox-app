@@ -13,6 +13,31 @@ const initialPortfolio = [
     { id: 7, pic: 'Rahman Andes Ltd.', manager: 'BTG Pactual', location: 'Brazil', value: 142857142, rate: 0.090, mandate: 'Aggressive Growth' },
 ];
 
+const RAHMAN_ENDPOINTS = {
+    fetch: '/api/getRahmanTrustData',
+    update: '/api/updateRahmanTrustData'
+};
+
+const mapRahmanFromApi = (doc) => ({
+    id: Number(doc.id),
+    pic: doc.pic ?? '',
+    manager: doc.manager ?? '',
+    location: doc.location ?? '',
+    value: Number(doc.value ?? 0),
+    rate: Number(doc.rate ?? 0),
+    mandate: doc.mandate ?? ''
+});
+
+const mapRahmanToApi = (row) => ({
+    id: row.id,
+    pic: row.pic,
+    manager: row.manager,
+    location: row.location,
+    value: row.value,
+    rate: row.rate,
+    mandate: row.mandate
+});
+
 // --- ফরম্যাটিং হেল্পার ---
 function formatCurrencyWithSign(num) {
     if (num === 0) return '$0';
@@ -51,6 +76,31 @@ export default function RahmanTrustPage() {
     const inputRef = useRef(null);
 
     useEffect(() => {
+        let isMounted = true;
+
+        const loadRahmanTrustData = async () => {
+            try {
+                const response = await fetch(RAHMAN_ENDPOINTS.fetch);
+                if (!response.ok) {
+                    throw new Error(`Failed to load Rahman Trust data: ${response.status}`);
+                }
+                const payload = await response.json();
+                if (isMounted && Array.isArray(payload)) {
+                    setPortfolioData(payload.map(mapRahmanFromApi));
+                }
+            } catch (error) {
+                console.error('Unable to fetch Rahman Trust data from API', error);
+            }
+        };
+
+        loadRahmanTrustData();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    useEffect(() => {
         if (isModalOpen && inputRef.current) {
             inputRef.current.focus();
             inputRef.current.select();
@@ -81,6 +131,26 @@ export default function RahmanTrustPage() {
         setEditPicName('');
     };
 
+    const persistRahmanTrustRow = async (row) => {
+        try {
+            const response = await fetch(RAHMAN_ENDPOINTS.update, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(mapRahmanToApi(row))
+            });
+            if (!response.ok) {
+                const message = await response.text();
+                throw new Error(message || 'Request failed');
+            }
+            const payload = await response.json();
+            if (Array.isArray(payload)) {
+                setPortfolioData(payload.map(mapRahmanFromApi));
+            }
+        } catch (error) {
+            console.error('Unable to persist Rahman Trust updates', error);
+        }
+    };
+
     const handleSave = () => {
         if (editRowId === null) {
             return;
@@ -95,11 +165,22 @@ export default function RahmanTrustPage() {
         const newRate = parsedRate / 100;
         const newValue = parsedValueMillions * 1e6;
 
+        let updatedRow = null;
+
         setPortfolioData(prevData =>
-            prevData.map(row =>
-                row.id === editRowId ? { ...row, rate: newRate, value: newValue } : row
-            )
+            prevData.map(row => {
+                if (row.id !== editRowId) {
+                    return row;
+                }
+                const nextRow = { ...row, rate: newRate, value: newValue };
+                updatedRow = nextRow;
+                return nextRow;
+            })
         );
+
+        if (updatedRow) {
+            void persistRahmanTrustRow(updatedRow);
+        }
 
         setIsModalOpen(false);
         setEditRowId(null);
