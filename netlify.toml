@@ -1,0 +1,13 @@
+[build]
+  # This tells Netlify how to build the React app
+  command = "npm run build"
+  publish = "build"
+  
+  # This tells Netlify that our API folder is named "api"
+  functions = "api"
+
+# This part tells Netlify how to handle API requests
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
