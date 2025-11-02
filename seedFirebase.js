@@ -1,14 +1,17 @@
-// seedMongo.js
+// seedFirebase.js
+const admin = require("firebase-admin");
+// This line reads the key file you just moved
+const serviceAccount = require("./serviceAccountKey.json");
 
-const mongoose = require('mongoose');
-const crazyFoxModule = require('./models/CrazyFox'); // ES module default export in Next.js
-const rahmanTrustModule = require('./models/RahmanTrust'); // ES module default export in Next.js
-const CrazyFox = crazyFoxModule.default || crazyFoxModule;
-const RahmanTrust = rahmanTrustModule.default || rahmanTrustModule;
-require('dotenv').config(); // To read .env file
+// Initialize Firebase Admin
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+const db = admin.firestore();
 
 // --- 1. Data from CrazyFoxPage.js ---
-const crazyFoxSourceData = [
+const crazyFoxData = [
     { year: 1, startAUM: 30e6, loan: 0, grossReturn: 0.48, netProfit: 11.9e6, repayment: 0, endAUM: 41.9e6 },
     { year: 2, startAUM: 41.9e6, loan: 0, grossReturn: 0.52, netProfit: 19.29e6, repayment: 0, endAUM: 61.19e6 },
     { year: 3, startAUM: 261.19e6, loan: 0, grossReturn: 0.55, netProfit: 139.74e6, repayment: 0, endAUM: 400.92e6 },
@@ -31,16 +34,6 @@ const crazyFoxSourceData = [
     { year: 20, startAUM: 107.82e9, loan: 3e9, grossReturn: 0.10, netProfit: 9.31e9, repayment: 500e6, endAUM: 116.63e9 }
 ];
 
-const crazyFoxData = crazyFoxSourceData.map((row) => ({
-    year: row.year,
-    start_aum: row.startAUM,
-    loan: row.loan,
-    gross_return: row.grossReturn,
-    net_profit: row.netProfit,
-    repayment: row.repayment,
-    end_aum: row.endAUM
-}));
-
 // --- 2. Data from RahmanTrustPage.js ---
 const rahmanTrustData = [
     { id: 1, pic: 'Rahman Matterhorn Ltd.', manager: 'UBS', location: 'Switzerland', value: 142857142, rate: 0.060, mandate: 'Stable Growth' },
@@ -49,45 +42,35 @@ const rahmanTrustData = [
     { id: 4, pic: 'Rahman Suhail Ltd.', manager: 'LGT', location: 'UAE', value: 142857142, rate: 0.090, mandate: 'Aggressive Growth' },
     { id: 5, pic: 'Rahman Liffey Ltd.', manager: 'Goodbody', location: 'Ireland', value: 142857142, rate: 0.060, mandate: 'Stable Growth' },
     { id: 6, pic: 'Rahman Merlion Ltd.', manager: 'DBS Private Bank', location: 'Singapore', value: 142857142, rate: 0.075, mandate: 'Balanced Growth' },
-    { id: 7, pic: 'Rahman Andes Ltd.', manager: 'BTG Pactual', location: 'Brazil', value: 142857142, rate: 0.090, mandate: 'Aggressive Growth' }
+    { id: 7, pic: 'Rahman Andes Ltd.', manager: 'BTG Pactual', location: 'Brazil', value: 142857142, rate: 0.090, mandate: 'Aggressive Growth' },
 ];
 
-const MONGODB_URI = process.env.MONGODB_URI;
-
-if (!MONGODB_URI) {
-    throw new Error('Please define the MONGODB_URI environment variable');
-}
-
-// --- 3. Seed Function ---
 const seedDatabase = async () => {
-    console.log('Connecting to database...');
-    await mongoose.connect(MONGODB_URI);
-    console.log('Connected successfully.');
+  try {
+    console.log("Seeding CrazyFox data...");
+    const crazyFoxBatch = db.batch();
+    crazyFoxData.forEach((item) => {
+      // Use 'year' as the document ID
+      const docRef = db.collection("crazyfox_sim_data").doc(String(item.year));
+      crazyFoxBatch.set(docRef, item);
+    });
+    await crazyFoxBatch.commit();
+    console.log("CrazyFox data seeded.");
 
-    try {
-        // Seed CrazyFox Data
-        console.log('Deleting old CrazyFox data...');
-        await CrazyFox.deleteMany({});
-        console.log('Inserting new CrazyFox data...');
-        await CrazyFox.insertMany(crazyFoxData);
-        console.log('CrazyFox data seeded successfully.');
+    console.log("Seeding RahmanTrust data...");
+    const rahmanTrustBatch = db.batch();
+    rahmanTrustData.forEach((item) => {
+      // Use 'id' as the document ID
+      const docRef = db.collection("rahman_trust_data").doc(String(item.id));
+      rahmanTrustBatch.set(docRef, item);
+    });
+    await rahmanTrustBatch.commit();
+    console.log("RahmanTrust data seeded.");
 
-        // Seed RahmanTrust Data
-        console.log('Deleting old RahmanTrust data...');
-        await RahmanTrust.deleteMany({});
-        console.log('Inserting new RahmanTrust data...');
-        await RahmanTrust.insertMany(rahmanTrustData);
-        console.log('RahmanTrust data seeded successfully.');
-
-        console.log('\n=== Database seeded successfully! ===');
-    } catch (error) {
-        console.error('Error seeding database:', error);
-    } finally {
-        // 4. Disconnect
-        await mongoose.connection.close();
-        console.log('Database connection closed.');
-    }
+    console.log("\n✅ Database seeding complete!");
+  } catch (error) {
+    console.error("Error seeding database:", error);
+  }
 };
 
-// --- 5. Run the function ---
 seedDatabase();
