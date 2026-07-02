@@ -56,7 +56,8 @@ function MandateChip({ mandate, rate }) {
 
 const RAHMAN_ENDPOINTS = {
     fetch: '/api/getRahmanTrustData',
-    update: '/api/updateRahmanTrustData'
+    update: '/api/updateRahmanTrustData',
+    add: '/api/addRahmanTrustEntry',
 };
 
 const mapRahmanFromApi = (doc) => ({
@@ -111,11 +112,15 @@ export default function RahmanTrustPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isAnnual, setIsAnnual] = useState(true);
     const [editRowId, setEditRowId] = useState(null);
+    const [isAddMode, setIsAddMode] = useState(false);
+    const [editPic, setEditPic] = useState('');
+    const [editManager, setEditManager] = useState('');
+    const [editLocation, setEditLocation] = useState('');
+    const [editMandate, setEditMandate] = useState('Stable Growth');
     const [editRate, setEditRate] = useState('0');
     const [editValue, setEditValue] = useState('0');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
-    const [editPicName, setEditPicName] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [errorMessage, setErrorMessage] = useState(null);
     const inputRef = useRef(null);
@@ -162,128 +167,98 @@ export default function RahmanTrustPage() {
     }, []);
 
     // --- এডিট/সেভ ফাংশন ---
+    const resetEditState = () => {
+        setEditRowId(null);
+        setIsAddMode(false);
+        setEditPic('');
+        setEditManager('');
+        setEditLocation('');
+        setEditMandate('Stable Growth');
+        setEditRate('0');
+        setEditValue('0');
+        setErrorMessage(null);
+    };
+
     const handleEdit = (row) => {
         setEditRowId(row.id);
+        setIsAddMode(false);
+        setEditPic(row.pic);
+        setEditManager(row.manager);
+        setEditLocation(row.location);
+        setEditMandate(row.mandate);
         setEditRate((row.rate * 100).toFixed(1));
         setEditValue((row.value / 1e6).toFixed(2));
-        setEditPicName(row.pic);
         setErrorMessage(null);
+        setIsModalOpen(true);
+    };
+
+    const handleOpenAdd = () => {
+        resetEditState();
+        setIsAddMode(true);
         setIsModalOpen(true);
     };
 
     const handleCancel = () => {
         setIsModalOpen(false);
-        setEditRowId(null);
-        setEditRate('0');
-        setEditValue('0');
-        setEditPicName('');
-        setErrorMessage(null);
+        resetEditState();
     };
 
-    const persistRahmanTrustRow = async (row) => {
-        try {
-            const response = await fetch(RAHMAN_ENDPOINTS.update, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(mapRahmanToApi(row))
-            });
-            if (!response.ok) {
-                const message = await response.text();
-                throw new Error(message || `Request failed with status ${response.status}`);
-            }
-            const payload = await response.json();
-            if (!Array.isArray(payload)) {
-                return {
-                    success: false,
-                    message: 'Unexpected response from Firebase.',
-                    synced: false
-                };
-            }
-
-            const normalized = payload.map(mapRahmanFromApi);
-            setPortfolioData(normalized);
-
-            const updatedDoc = normalized.find((doc) => doc.id === row.id);
-            if (updatedDoc && updatedDoc.value === row.value && updatedDoc.rate === row.rate) {
-                return {
-                    success: true,
-                    message: 'Firebase confirmed the updated values.',
-                    synced: true
-                };
-            }
-
-            return {
-                success: false,
-                message: 'Firebase saved different values. Please refresh and verify.',
-                synced: true
-            };
-        } catch (error) {
-            console.error('Unable to persist Rahman Trust updates', error);
-            return {
-                success: false,
-                message: error.message || 'Failed to update Firebase.',
-                synced: false
-            };
+    const callApi = async (url, body) => {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (!response.ok) {
+            const message = await response.text();
+            throw new Error(message || `Request failed with status ${response.status}`);
         }
+        const payload = await response.json();
+        if (!Array.isArray(payload)) throw new Error('Unexpected response from Firebase.');
+        return payload.map(mapRahmanFromApi);
     };
 
     const handleSave = async () => {
-        if (editRowId === null) {
-            return;
-        }
-
         const parsedRate = parseFloat(editRate);
         const parsedValueMillions = parseFloat(editValue);
-        if (Number.isNaN(parsedRate) || Number.isNaN(parsedValueMillions)) {
-            setErrorMessage('Please enter valid rate and value before saving.');
+        if (Number.isNaN(parsedRate) || Number.isNaN(parsedValueMillions) || !editPic.trim() || !editManager.trim() || !editLocation.trim()) {
+            setErrorMessage('Please fill in all fields before saving.');
             return;
         }
 
         const newRate = parsedRate / 100;
         const newValue = parsedValueMillions * 1e6;
 
-        const existingRow = portfolioData.find((row) => row.id === editRowId);
-        if (!existingRow) {
-            setErrorMessage('Could not locate the selected entry. Please refresh and try again.');
-            return;
-        }
-
-        const previousRow = { ...existingRow };
-        const updatedRow = { ...existingRow, rate: newRate, value: newValue };
-
-        setPortfolioData(prevData =>
-            prevData.map(row => (row.id === editRowId ? updatedRow : row))
-        );
-
         setIsSaving(true);
-        let result;
         try {
-            result = await persistRahmanTrustRow(updatedRow);
+            let normalized;
+            if (isAddMode) {
+                normalized = await callApi(RAHMAN_ENDPOINTS.add, {
+                    pic: editPic.trim(),
+                    manager: editManager.trim(),
+                    location: editLocation.trim(),
+                    mandate: editMandate,
+                    value: newValue,
+                    rate: newRate,
+                });
+            } else {
+                normalized = await callApi(RAHMAN_ENDPOINTS.update, {
+                    id: editRowId,
+                    pic: editPic.trim(),
+                    manager: editManager.trim(),
+                    location: editLocation.trim(),
+                    mandate: editMandate,
+                    value: newValue,
+                    rate: newRate,
+                });
+            }
+            setPortfolioData(normalized);
+            setIsModalOpen(false);
+            resetEditState();
         } catch (error) {
-            console.error('Unexpected error while saving Rahman Trust data', error);
-            result = {
-                success: false,
-                synced: false,
-                message: error.message || 'Unexpected error while updating Firebase.'
-            };
+            setErrorMessage(error.message || 'Failed to save. Please try again.');
         } finally {
             setIsSaving(false);
-        }
-
-        if (result.success) {
-            setIsModalOpen(false);
-            setEditRowId(null);
-            setEditRate('0');
-            setEditValue('0');
-            setEditPicName('');
-            setErrorMessage(null);
-        } else {
-            if (!result.synced) {
-                setPortfolioData(prevData =>
-                    prevData.map(row => (row.id === editRowId ? previousRow : row))
-                );
-            }
-            setErrorMessage(result.message || 'Firebase rejected the changes.');
         }
     };
 
@@ -399,60 +374,96 @@ export default function RahmanTrustPage() {
                 {isModalOpen && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
                         <div
-                            className="relative w-full max-w-lg rounded-xl border border-gray-700 bg-gray-900 p-6 shadow-xl"
+                            className="relative w-full max-w-lg rounded-xl border border-gray-700 bg-gray-900 p-6 shadow-xl max-h-[90vh] overflow-y-auto"
                             onKeyDown={handleModalKeyDown}
                             tabIndex={-1}
                         >
-                            <button
-                                type="button"
-                                onClick={handleCancel}
-                                className="absolute right-3 top-3 text-gray-400 transition-colors hover:text-red-400"
-                                aria-label="Cancel editing"
-                            >
+                            <button type="button" onClick={handleCancel} className="absolute right-3 top-3 text-gray-400 transition-colors hover:text-red-400" aria-label="Cancel">
                                 <FiXCircle size={20} />
                             </button>
-                            <h3 className="text-xl font-semibold text-white">Edit Portfolio Allocation</h3>
-                            {editPicName && (<p className="mt-1 text-sm font-semibold text-gray-200">{editPicName}</p>)}
-                            <p className="mt-1 text-sm text-gray-400">Adjust the capital (in millions) and target rate for the selected PIC.</p>
 
-                            <label className="mt-4 block text-sm font-medium text-gray-300" htmlFor="portfolio-value-input">
-                                Portfolio Value (Millions USD)
-                            </label>
-                            <input
-                                id="portfolio-value-input"
-                                ref={inputRef}
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                className="mt-2 w-full rounded-md border border-blue-500 bg-gray-800 p-3 text-white outline-none focus:ring-2 focus:ring-blue-400"
-                            />
+                            <h3 className="text-xl font-semibold text-white">
+                                {isAddMode ? 'Add New PIC Entry' : 'Edit Portfolio Entry'}
+                            </h3>
+                            <p className="mt-1 text-sm text-gray-400 mb-5">
+                                {isAddMode ? 'Fill in the details for the new company.' : 'Update the details for this entry.'}
+                            </p>
 
-                            <label className="mt-4 block text-sm font-medium text-gray-300" htmlFor="portfolio-rate-input">
-                                Mandate Rate (%)
-                            </label>
-                            <input
-                                id="portfolio-rate-input"
-                                type="number"
-                                step="0.1"
-                                value={editRate}
-                                onChange={(e) => setEditRate(e.target.value)}
-                                className="mt-2 w-full rounded-md border border-blue-500 bg-gray-800 p-3 text-white outline-none focus:ring-2 focus:ring-blue-400"
-                            />
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-1.5">BVI PIC Name</label>
+                                    <input
+                                        ref={inputRef}
+                                        type="text"
+                                        placeholder="e.g. Rahman Alpine Ltd."
+                                        value={editPic}
+                                        onChange={(e) => setEditPic(e.target.value)}
+                                        className="w-full rounded-md border border-blue-500/50 bg-gray-800 p-3 text-white outline-none focus:ring-2 focus:ring-blue-400"
+                                    />
+                                </div>
 
-                            <p className="mt-2 text-xs text-gray-500">Press Enter to save or Esc to cancel.</p>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-1.5">Wealth Manager</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. Credit Suisse"
+                                            value={editManager}
+                                            onChange={(e) => setEditManager(e.target.value)}
+                                            className="w-full rounded-md border border-blue-500/50 bg-gray-800 p-3 text-white outline-none focus:ring-2 focus:ring-blue-400"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-1.5">Banking Location</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. Switzerland"
+                                            value={editLocation}
+                                            onChange={(e) => setEditLocation(e.target.value)}
+                                            className="w-full rounded-md border border-blue-500/50 bg-gray-800 p-3 text-white outline-none focus:ring-2 focus:ring-blue-400"
+                                        />
+                                    </div>
+                                </div>
 
-                            {errorMessage && (
-                                <p className="mt-3 text-sm text-rose-300">{errorMessage}</p>
-                            )}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Mandate Type</label>
+                                    <select
+                                        value={editMandate}
+                                        onChange={(e) => setEditMandate(e.target.value)}
+                                        className="w-full rounded-md border border-blue-500/50 bg-gray-800 p-3 text-white outline-none focus:ring-2 focus:ring-blue-400"
+                                    >
+                                        <option value="Stable Growth">Stable Growth</option>
+                                        <option value="Balanced Growth">Balanced Growth</option>
+                                        <option value="Aggressive Growth">Aggressive Growth</option>
+                                    </select>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-1.5">Portfolio Value <span className="text-gray-500">(Millions USD)</span></label>
+                                        <input
+                                            type="number" min="0" step="0.01"
+                                            value={editValue}
+                                            onChange={(e) => setEditValue(e.target.value)}
+                                            className="w-full rounded-md border border-blue-500/50 bg-gray-800 p-3 text-white outline-none focus:ring-2 focus:ring-blue-400"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-1.5">Mandate Rate <span className="text-gray-500">(%)</span></label>
+                                        <input
+                                            type="number" step="0.1"
+                                            value={editRate}
+                                            onChange={(e) => setEditRate(e.target.value)}
+                                            className="w-full rounded-md border border-blue-500/50 bg-gray-800 p-3 text-white outline-none focus:ring-2 focus:ring-blue-400"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {errorMessage && <p className="mt-3 text-sm text-rose-300">{errorMessage}</p>}
 
                             <div className="mt-6 flex justify-end space-x-3">
-                                <button
-                                    type="button"
-                                    onClick={handleCancel}
-                                    className="rounded-md border border-gray-600 px-4 py-2 text-sm text-gray-300 transition-colors hover:bg-gray-800"
-                                >
+                                <button type="button" onClick={handleCancel} className="rounded-md border border-gray-600 px-4 py-2 text-sm text-gray-300 transition-colors hover:bg-gray-800">
                                     Cancel
                                 </button>
                                 <button
@@ -462,35 +473,9 @@ export default function RahmanTrustPage() {
                                     className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-70"
                                 >
                                     {isSaving ? (
-                                        <>
-                                            <svg
-                                                className="mr-2 h-4 w-4 animate-spin text-white"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                aria-hidden="true"
-                                            >
-                                                <circle
-                                                    className="opacity-25"
-                                                    cx="12"
-                                                    cy="12"
-                                                    r="10"
-                                                    stroke="currentColor"
-                                                    strokeWidth="4"
-                                                />
-                                                <path
-                                                    className="opacity-75"
-                                                    fill="currentColor"
-                                                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                                                />
-                                            </svg>
-                                            Saving...
-                                        </>
+                                        <><svg className="mr-2 h-4 w-4 animate-spin text-white" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>Saving...</>
                                     ) : (
-                                        <>
-                                            <FiSave size={16} className="mr-2" />
-                                            Save
-                                        </>
+                                        <><FiSave size={16} className="mr-2" />{isAddMode ? 'Add Entry' : 'Save Changes'}</>
                                     )}
                                 </button>
                             </div>
@@ -575,12 +560,18 @@ export default function RahmanTrustPage() {
                             <tr>
                                 <td colSpan="7" className="px-6 py-3">
                                     <div className="flex justify-between items-center">
-                                        <button className="flex items-center text-sm text-gray-400 hover:text-white">
-                                            <FiGrid className="mr-2" />
-                                            Export to Sheets
-                                        </button>
-                                        <button className="text-sm text-gray-400 hover:text-white">
-                                            <FiCopy />
+                                        <div className="flex items-center gap-4">
+                                            <button className="flex items-center text-sm text-gray-400 hover:text-white transition-colors">
+                                                <FiGrid className="mr-2" />
+                                                Export to Sheets
+                                            </button>
+                                        </div>
+                                        <button
+                                            onClick={handleOpenAdd}
+                                            className="flex items-center gap-2 px-4 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
+                                            Add New PIC
                                         </button>
                                     </div>
                                 </td>
