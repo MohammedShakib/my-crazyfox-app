@@ -99,6 +99,150 @@ const addRahmanTrustEntry = async (req, res) => {
   }
 };
 
+// ── Bangladesh Trust seed data ────────────────────────────────────────────
+const BD_PORTFOLIO_SEED = [
+  { id: 1, asset_class: 'Government Treasury Bond', institution: 'Bangladesh Bank / Primary Dealers', amount_bdt: 1750000000, rate: 0.125, tax_rate: 0.05, category: 'bond' },
+  { id: 2, asset_class: 'Cityjem FDR', institution: 'City Bank', amount_bdt: 525000000, rate: 0.085, tax_rate: 0.10, category: 'fdr' },
+  { id: 3, asset_class: 'Commercial Real Estate', institution: 'Rahman Holdings Limited', amount_bdt: 875000000, rate: 0.06, tax_rate: 0.15, category: 'real_estate' },
+  { id: 4, asset_class: 'Capital Market / Corp Bond', institution: 'BSEC / DSE', amount_bdt: 350000000, rate: 0.10, tax_rate: 0.05, category: 'capital_market' },
+];
+const BD_BENEFICIARIES_SEED = [
+  { id: 1, name: 'Rahman Family Monthly', type: 'family', monthly_payout_lakh: 5.0, active: true },
+  { id: 2, name: 'Education Foundation', type: 'ngo', monthly_payout_lakh: 1.5, active: true },
+  { id: 3, name: 'Charitable Donation Fund', type: 'donation', monthly_payout_lakh: 1.0, active: true },
+];
+
+const getBDTrustPortfolio = async (req, res) => {
+  try {
+    const col = db.collection('bd_trust_portfolio');
+    const snapshot = await col.orderBy('id', 'asc').get();
+    if (snapshot.empty) {
+      const batch = db.batch();
+      BD_PORTFOLIO_SEED.forEach((item) => batch.set(col.doc(String(item.id)), item));
+      await batch.commit();
+      return res.status(200).json(BD_PORTFOLIO_SEED);
+    }
+    res.status(200).json(snapshot.docs.map((d) => d.data()));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const addBDTrustPortfolioEntry = async (req, res) => {
+  try {
+    const { asset_class, institution, category, amount_bdt, rate, tax_rate } = req.body;
+    if (!asset_class || !institution || !category || amount_bdt === undefined || rate === undefined || tax_rate === undefined) {
+      return res.status(400).send('Missing required fields');
+    }
+    const col = db.collection('bd_trust_portfolio');
+    const snap = await col.orderBy('id', 'desc').limit(1).get();
+    const newId = snap.empty ? 1 : snap.docs[0].data().id + 1;
+    await col.doc(String(newId)).set({ id: newId, asset_class, institution, category, amount_bdt, rate, tax_rate });
+    const all = await col.orderBy('id', 'asc').get();
+    res.status(200).json(all.docs.map((d) => d.data()));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const updateBDTrustPortfolioEntry = async (req, res) => {
+  try {
+    const { id, asset_class, institution, category, amount_bdt, rate, tax_rate } = req.body;
+    if (id === undefined) return res.status(400).send('Missing id');
+    const update = {};
+    if (asset_class !== undefined) update.asset_class = asset_class;
+    if (institution !== undefined) update.institution = institution;
+    if (category !== undefined) update.category = category;
+    if (amount_bdt !== undefined) update.amount_bdt = amount_bdt;
+    if (rate !== undefined) update.rate = rate;
+    if (tax_rate !== undefined) update.tax_rate = tax_rate;
+    await db.collection('bd_trust_portfolio').doc(String(id)).update(update);
+    const all = await db.collection('bd_trust_portfolio').orderBy('id', 'asc').get();
+    res.status(200).json(all.docs.map((d) => d.data()));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getBDTrustBeneficiaries = async (req, res) => {
+  try {
+    const col = db.collection('bd_trust_beneficiaries');
+    const snapshot = await col.orderBy('id', 'asc').get();
+    if (snapshot.empty) {
+      const batch = db.batch();
+      BD_BENEFICIARIES_SEED.forEach((item) => batch.set(col.doc(String(item.id)), item));
+      await batch.commit();
+      return res.status(200).json(BD_BENEFICIARIES_SEED);
+    }
+    res.status(200).json(snapshot.docs.map((d) => d.data()));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const addBDTrustBeneficiary = async (req, res) => {
+  try {
+    const { name, type, monthly_payout_lakh, active } = req.body;
+    if (!name || !type || monthly_payout_lakh === undefined) return res.status(400).send('Missing required fields');
+    const col = db.collection('bd_trust_beneficiaries');
+    const snap = await col.orderBy('id', 'desc').limit(1).get();
+    const newId = snap.empty ? 1 : snap.docs[0].data().id + 1;
+    await col.doc(String(newId)).set({ id: newId, name, type, monthly_payout_lakh, active: active !== false });
+    const all = await col.orderBy('id', 'asc').get();
+    res.status(200).json(all.docs.map((d) => d.data()));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const updateBDTrustBeneficiary = async (req, res) => {
+  try {
+    const { id, name, type, monthly_payout_lakh, active } = req.body;
+    if (id === undefined) return res.status(400).send('Missing id');
+    const update = {};
+    if (name !== undefined) update.name = name;
+    if (type !== undefined) update.type = type;
+    if (monthly_payout_lakh !== undefined) update.monthly_payout_lakh = monthly_payout_lakh;
+    if (active !== undefined) update.active = active;
+    await db.collection('bd_trust_beneficiaries').doc(String(id)).update(update);
+    const all = await db.collection('bd_trust_beneficiaries').orderBy('id', 'asc').get();
+    res.status(200).json(all.docs.map((d) => d.data()));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const deleteBDTrustBeneficiary = async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (id === undefined) return res.status(400).send('Missing id');
+    await db.collection('bd_trust_beneficiaries').doc(String(id)).delete();
+    const all = await db.collection('bd_trust_beneficiaries').orderBy('id', 'asc').get();
+    res.status(200).json(all.docs.map((d) => d.data()));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const addBDTrustDeposit = async (req, res) => {
+  try {
+    const { asset_id, amount_bdt, note } = req.body;
+    if (asset_id === undefined || amount_bdt === undefined) return res.status(400).send('Missing required fields');
+    const docRef = db.collection('bd_trust_portfolio').doc(String(asset_id));
+    const docSnap = await docRef.get();
+    if (!docSnap.exists) return res.status(404).send('Asset not found');
+    await docRef.update({ amount_bdt: docSnap.data().amount_bdt + amount_bdt });
+    await db.collection('bd_trust_transactions').doc().set({
+      asset_id, amount_bdt, note: note || '',
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    const all = await db.collection('bd_trust_portfolio').orderBy('id', 'asc').get();
+    res.status(200).json(all.docs.map((d) => d.data()));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // Expose handlers on both direct and /api-prefixed paths so Hosting rewrites reach them
 app.get("/getCrazyFoxData", getCrazyFoxData);
 app.get("/api/getCrazyFoxData", getCrazyFoxData);
@@ -110,6 +254,22 @@ app.post("/updateRahmanTrustData", updateRahmanTrustData);
 app.post("/api/updateRahmanTrustData", updateRahmanTrustData);
 app.post("/addRahmanTrustEntry", addRahmanTrustEntry);
 app.post("/api/addRahmanTrustEntry", addRahmanTrustEntry);
+app.get("/getBDTrustPortfolio", getBDTrustPortfolio);
+app.get("/api/getBDTrustPortfolio", getBDTrustPortfolio);
+app.post("/addBDTrustPortfolioEntry", addBDTrustPortfolioEntry);
+app.post("/api/addBDTrustPortfolioEntry", addBDTrustPortfolioEntry);
+app.post("/updateBDTrustPortfolioEntry", updateBDTrustPortfolioEntry);
+app.post("/api/updateBDTrustPortfolioEntry", updateBDTrustPortfolioEntry);
+app.get("/getBDTrustBeneficiaries", getBDTrustBeneficiaries);
+app.get("/api/getBDTrustBeneficiaries", getBDTrustBeneficiaries);
+app.post("/addBDTrustBeneficiary", addBDTrustBeneficiary);
+app.post("/api/addBDTrustBeneficiary", addBDTrustBeneficiary);
+app.post("/updateBDTrustBeneficiary", updateBDTrustBeneficiary);
+app.post("/api/updateBDTrustBeneficiary", updateBDTrustBeneficiary);
+app.post("/deleteBDTrustBeneficiary", deleteBDTrustBeneficiary);
+app.post("/api/deleteBDTrustBeneficiary", deleteBDTrustBeneficiary);
+app.post("/addBDTrustDeposit", addBDTrustDeposit);
+app.post("/api/addBDTrustDeposit", addBDTrustDeposit);
 
 // Expose the Express app as a single Cloud Function named 'api'
 exports.api = functions.https.onRequest(app);

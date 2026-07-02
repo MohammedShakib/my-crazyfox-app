@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiEdit2, FiSave, FiXCircle, FiGrid, FiCopy } from 'react-icons/fi';
 import LoadingScreen from '../components/LoadingScreen';
+import BDTrustPage from './BDTrustPage';
 
 const CHART_COLORS = ['#3b82f6', '#8b5cf6', '#06b6d4', '#22c55e', '#f59e0b', '#ef4444', '#ec4899'];
 
@@ -122,6 +123,7 @@ export default function RahmanTrustPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [activeTrust, setActiveTrust] = useState('international');
     const [errorMessage, setErrorMessage] = useState(null);
     const inputRef = useRef(null);
 
@@ -310,6 +312,8 @@ export default function RahmanTrustPage() {
     // --- নতুন: মাসিক ইনকাম গণনা ---
     const monthlyIncome = totalProjectedGain / 12;
 
+    if (activeTrust === 'bangladesh') return <BDTrustPage onSwitch={setActiveTrust} />;
+
     if (isLoading) return <LoadingScreen title="Loading trust portfolio..." />;
 
     return (
@@ -317,18 +321,34 @@ export default function RahmanTrustPage() {
             <div className="max-w-7xl mx-auto">
 
                 {/* হেডার: Back বাটন এবং টাইটেল */}
-                <header className="flex items-center justify-between mb-10">
-                    <Link 
+                <header className="flex items-center justify-between mb-10 flex-wrap gap-4">
+                    <Link
                         to="/"
                         className="flex items-center text-sm text-gray-400 hover:text-blue-400 transition-colors"
                     >
                         <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
                         Back to Home
                     </Link>
-                    
-                    <div className="text-right">
-                        <h1 className="text-3xl md:text-4xl font-bold text-white">Rahman Family Trust</h1>
-                        <p className="text-md md:text-lg text-gray-400 mt-1">Global Wealth Dashboard</p>
+
+                    <div className="flex flex-col items-end gap-3">
+                        <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1">
+                            <button
+                                onClick={() => setActiveTrust('international')}
+                                className="px-3 py-1.5 text-sm rounded-md font-medium bg-blue-600 text-white cursor-default"
+                            >
+                                🌍 International
+                            </button>
+                            <button
+                                onClick={() => setActiveTrust('bangladesh')}
+                                className="px-3 py-1.5 text-sm rounded-md font-medium text-gray-400 hover:text-white transition-colors"
+                            >
+                                🇧🇩 Bangladesh
+                            </button>
+                        </div>
+                        <div className="text-right">
+                            <h1 className="text-3xl md:text-4xl font-bold text-white">Rahman Family Trust</h1>
+                            <p className="text-md md:text-lg text-gray-400 mt-1">Global Wealth Dashboard</p>
+                        </div>
                     </div>
                 </header>
 
