@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiEdit2, FiSave, FiXCircle, FiGrid, FiCopy } from 'react-icons/fi';
+import LoadingScreen from '../components/LoadingScreen';
 
 const RAHMAN_ENDPOINTS = {
     fetch: '/api/getRahmanTrustData',
@@ -56,22 +57,16 @@ export default function RahmanTrustPage() {
     
     // --- State তৈরি করা ---
     const [portfolioData, setPortfolioData] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [editRowId, setEditRowId] = useState(null);
     const [editRate, setEditRate] = useState('0');
     const [editValue, setEditValue] = useState('0');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const [editPicName, setEditPicName] = useState('');
-    const [feedback, setFeedback] = useState(null);
+    const [isSaving, setIsSaving] = useState(false);
+    const [errorMessage, setErrorMessage] = useState(null);
     const inputRef = useRef(null);
-
-    useEffect(() => {
-        if (!feedback) {
-            return undefined;
-        }
-        const timer = setTimeout(() => setFeedback(null), 4000);
-        return () => clearTimeout(timer);
-    }, [feedback]);
 
     useEffect(() => {
         let isMounted = true;
@@ -88,6 +83,8 @@ export default function RahmanTrustPage() {
                 }
             } catch (error) {
                 console.error('Unable to fetch Rahman Trust data from API', error);
+            } finally {
+                if (isMounted) setIsLoading(false);
             }
         };
 
@@ -118,6 +115,7 @@ export default function RahmanTrustPage() {
         setEditRate((row.rate * 100).toFixed(1));
         setEditValue((row.value / 1e6).toFixed(2));
         setEditPicName(row.pic);
+        setErrorMessage(null);
         setIsModalOpen(true);
     };
 
@@ -127,6 +125,7 @@ export default function RahmanTrustPage() {
         setEditRate('0');
         setEditValue('0');
         setEditPicName('');
+        setErrorMessage(null);
     };
 
     const persistRahmanTrustRow = async (row) => {
@@ -144,7 +143,7 @@ export default function RahmanTrustPage() {
             if (!Array.isArray(payload)) {
                 return {
                     success: false,
-                    message: 'Unexpected response from database.',
+                    message: 'Unexpected response from Firebase.',
                     synced: false
                 };
             }
@@ -156,21 +155,21 @@ export default function RahmanTrustPage() {
             if (updatedDoc && updatedDoc.value === row.value && updatedDoc.rate === row.rate) {
                 return {
                     success: true,
-                    message: 'MongoDB confirmed the updated values.',
+                    message: 'Firebase confirmed the updated values.',
                     synced: true
                 };
             }
 
             return {
                 success: false,
-                message: 'MongoDB saved different values. Please refresh and verify.',
+                message: 'Firebase saved different values. Please refresh and verify.',
                 synced: true
             };
         } catch (error) {
             console.error('Unable to persist Rahman Trust updates', error);
             return {
                 success: false,
-                message: error.message || 'Failed to update MongoDB.',
+                message: error.message || 'Failed to update Firebase.',
                 synced: false
             };
         }
@@ -184,11 +183,7 @@ export default function RahmanTrustPage() {
         const parsedRate = parseFloat(editRate);
         const parsedValueMillions = parseFloat(editValue);
         if (Number.isNaN(parsedRate) || Number.isNaN(parsedValueMillions)) {
-            setFeedback({
-                type: 'error',
-                title: 'Invalid Numbers',
-                message: 'Please enter valid rate and value before saving.'
-            });
+            setErrorMessage('Please enter valid rate and value before saving.');
             return;
         }
 
@@ -197,11 +192,7 @@ export default function RahmanTrustPage() {
 
         const existingRow = portfolioData.find((row) => row.id === editRowId);
         if (!existingRow) {
-            setFeedback({
-                type: 'error',
-                title: 'Row Not Found',
-                message: 'Could not locate the selected entry. Please refresh and try again.'
-            });
+            setErrorMessage('Could not locate the selected entry. Please refresh and try again.');
             return;
         }
 
@@ -212,7 +203,20 @@ export default function RahmanTrustPage() {
             prevData.map(row => (row.id === editRowId ? updatedRow : row))
         );
 
-        const result = await persistRahmanTrustRow(updatedRow);
+        setIsSaving(true);
+        let result;
+        try {
+            result = await persistRahmanTrustRow(updatedRow);
+        } catch (error) {
+            console.error('Unexpected error while saving Rahman Trust data', error);
+            result = {
+                success: false,
+                synced: false,
+                message: error.message || 'Unexpected error while updating Firebase.'
+            };
+        } finally {
+            setIsSaving(false);
+        }
 
         if (result.success) {
             setIsModalOpen(false);
@@ -220,22 +224,14 @@ export default function RahmanTrustPage() {
             setEditRate('0');
             setEditValue('0');
             setEditPicName('');
-            setFeedback({
-                type: 'success',
-                title: 'Database Updated',
-                message: result.message || 'MongoDB confirmed the new values.'
-            });
+            setErrorMessage(null);
         } else {
             if (!result.synced) {
                 setPortfolioData(prevData =>
                     prevData.map(row => (row.id === editRowId ? previousRow : row))
                 );
             }
-            setFeedback({
-                type: 'error',
-                title: 'Update Failed',
-                message: result.message || 'MongoDB did not accept the changes.'
-            });
+            setErrorMessage(result.message || 'Firebase rejected the changes.');
         }
     };
 
@@ -286,6 +282,8 @@ export default function RahmanTrustPage() {
     
     // --- নতুন: মাসিক ইনকাম গণনা ---
     const monthlyIncome = totalProjectedGain / 12;
+
+    if (isLoading) return <LoadingScreen title="Loading trust portfolio..." />;
 
     return (
         <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-gray-900 via-[#030712] to-gray-900">
@@ -373,6 +371,10 @@ export default function RahmanTrustPage() {
 
                             <p className="mt-2 text-xs text-gray-500">Press Enter to save or Esc to cancel.</p>
 
+                            {errorMessage && (
+                                <p className="mt-3 text-sm text-rose-300">{errorMessage}</p>
+                            )}
+
                             <div className="mt-6 flex justify-end space-x-3">
                                 <button
                                     type="button"
@@ -384,10 +386,40 @@ export default function RahmanTrustPage() {
                                 <button
                                     type="button"
                                     onClick={handleSave}
-                                    className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                    disabled={isSaving}
+                                    className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-70"
                                 >
-                                    <FiSave size={16} className="mr-2" />
-                                    Save
+                                    {isSaving ? (
+                                        <>
+                                            <svg
+                                                className="mr-2 h-4 w-4 animate-spin text-white"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                aria-hidden="true"
+                                            >
+                                                <circle
+                                                    className="opacity-25"
+                                                    cx="12"
+                                                    cy="12"
+                                                    r="10"
+                                                    stroke="currentColor"
+                                                    strokeWidth="4"
+                                                />
+                                                <path
+                                                    className="opacity-75"
+                                                    fill="currentColor"
+                                                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                                                />
+                                            </svg>
+                                            Saving...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FiSave size={16} className="mr-2" />
+                                            Save
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </div>
@@ -513,28 +545,11 @@ export default function RahmanTrustPage() {
                     </div>
                 </div>
 
-            {feedback && (
-                <div className="fixed inset-0 z-[2000] flex items-center justify-center px-4 pointer-events-auto bg-slate-950/80 backdrop-blur-2xl backdrop-brightness-[0.65] transition-opacity duration-200">
-                    <div className="pointer-events-none flex items-center justify-center">
-                        <div
-                            className={`pointer-events-auto px-6 py-4 rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)] text-white backdrop-blur-lg ${feedback.type === 'success'
-                                ? 'bg-emerald-600/95 border border-emerald-300/50'
-                                : 'bg-red-600/95 border border-red-300/50'
-                            }`}
-                        >
-                            <p className="text-lg font-semibold">
-                                {feedback.title}
-                            </p>
-                            <p className="mt-1 text-sm text-gray-100/90 max-w-md">
-                                {feedback.message}
-                            </p>
-                            <button
-                                className="mt-3 inline-flex items-center rounded-md bg-white/20 px-3 py-1 text-sm font-medium hover:bg-white/30 transition"
-                                onClick={() => setFeedback(null)}
-                            >
-                                Close
-                            </button>
-                        </div>
+            {isSaving && (
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm">
+                    <div className="flex flex-col items-center space-y-3 text-sky-100">
+                        <div className="h-16 w-16 rounded-full border-4 border-sky-200 border-t-sky-500 animate-spin" aria-hidden="true" />
+                        <span className="text-sm font-medium tracking-wide">Syncing with Firebase&hellip;</span>
                     </div>
                 </div>
             )}

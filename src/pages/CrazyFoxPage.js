@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react'; // <-- useState ইম্পোর্ট করুন
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiEdit2, FiSave, FiXCircle } from 'react-icons/fi'; // <-- আইকন ইম্পোর্ট করুন
+import { FiEdit2, FiSave, FiXCircle } from 'react-icons/fi';
+import LoadingScreen from '../components/LoadingScreen';
 
 const CRAZYFOX_ENDPOINTS = {
     fetch: '/api/getCrazyFoxData',
@@ -52,8 +53,8 @@ export default function CrazyFoxPage() {
     // --- ধাপ ১: State তৈরি করা ---
     // স্ট্যাটিক ডেটাকে state-এ রূপান্তর করা হলো
     const [simData, setSimData] = useState([]);
-    // কোনটি এডিট হচ্ছে তা ট্র্যাক করার জন্য
-    const [editRowId, setEditRowId] = useState(null); 
+    const [isLoading, setIsLoading] = useState(true);
+    const [editRowId, setEditRowId] = useState(null);
     // ইনপুট ফিল্ডের ভ্যালু রাখার জন্য
     const [editGrossReturn, setEditGrossReturn] = useState('0');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -75,6 +76,8 @@ export default function CrazyFoxPage() {
                 }
             } catch (error) {
                 console.error('Unable to fetch CrazyFox data from API', error);
+            } finally {
+                if (isMounted) setIsLoading(false);
             }
         };
 
@@ -224,6 +227,8 @@ export default function CrazyFoxPage() {
     // simData (state) থেকে মোট লাভ ও শেষ ইক্যুইটি গণনা করুন
     const totalNetProfit = simData.reduce((acc, row) => acc + row.netProfit, 0);
     const endingEquity = simData.length > 0 ? simData[simData.length - 1].endAUM : 0;
+
+    if (isLoading) return <LoadingScreen title="Loading simulation data..." />;
 
     return (
         <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-gray-900 via-[#030712] to-gray-900">
