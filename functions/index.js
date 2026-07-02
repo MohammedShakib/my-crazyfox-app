@@ -224,6 +224,63 @@ const deleteBDTrustBeneficiary = async (req, res) => {
   }
 };
 
+const addBDTrustBeneficiaryMember = async (req, res) => {
+  try {
+    const { beneficiary_id, name, monthly_payout_lakh, active } = req.body;
+    if (!beneficiary_id || !name || monthly_payout_lakh === undefined) return res.status(400).send('Missing required fields');
+    const docRef = db.collection('bd_trust_beneficiaries').doc(String(beneficiary_id));
+    const docSnap = await docRef.get();
+    if (!docSnap.exists) return res.status(404).send('Beneficiary not found');
+    const members = docSnap.data().members || [];
+    const newId = members.length > 0 ? Math.max(...members.map((m) => m.id)) + 1 : 1;
+    await docRef.update({ members: [...members, { id: newId, name, monthly_payout_lakh, active: active !== false }] });
+    const all = await db.collection('bd_trust_beneficiaries').orderBy('id', 'asc').get();
+    res.status(200).json(all.docs.map((d) => d.data()));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const updateBDTrustBeneficiaryMember = async (req, res) => {
+  try {
+    const { beneficiary_id, member_id, name, monthly_payout_lakh, active } = req.body;
+    if (beneficiary_id === undefined || member_id === undefined) return res.status(400).send('Missing required fields');
+    const docRef = db.collection('bd_trust_beneficiaries').doc(String(beneficiary_id));
+    const docSnap = await docRef.get();
+    if (!docSnap.exists) return res.status(404).send('Beneficiary not found');
+    const members = (docSnap.data().members || []).map((m) => {
+      if (m.id !== member_id) return m;
+      return {
+        ...m,
+        ...(name !== undefined && { name }),
+        ...(monthly_payout_lakh !== undefined && { monthly_payout_lakh }),
+        ...(active !== undefined && { active }),
+      };
+    });
+    await docRef.update({ members });
+    const all = await db.collection('bd_trust_beneficiaries').orderBy('id', 'asc').get();
+    res.status(200).json(all.docs.map((d) => d.data()));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const deleteBDTrustBeneficiaryMember = async (req, res) => {
+  try {
+    const { beneficiary_id, member_id } = req.body;
+    if (beneficiary_id === undefined || member_id === undefined) return res.status(400).send('Missing required fields');
+    const docRef = db.collection('bd_trust_beneficiaries').doc(String(beneficiary_id));
+    const docSnap = await docRef.get();
+    if (!docSnap.exists) return res.status(404).send('Beneficiary not found');
+    const members = (docSnap.data().members || []).filter((m) => m.id !== member_id);
+    await docRef.update({ members });
+    const all = await db.collection('bd_trust_beneficiaries').orderBy('id', 'asc').get();
+    res.status(200).json(all.docs.map((d) => d.data()));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 const addBDTrustDeposit = async (req, res) => {
   try {
     const { asset_id, amount_bdt, note } = req.body;
@@ -270,6 +327,12 @@ app.post("/deleteBDTrustBeneficiary", deleteBDTrustBeneficiary);
 app.post("/api/deleteBDTrustBeneficiary", deleteBDTrustBeneficiary);
 app.post("/addBDTrustDeposit", addBDTrustDeposit);
 app.post("/api/addBDTrustDeposit", addBDTrustDeposit);
+app.post("/addBDTrustBeneficiaryMember", addBDTrustBeneficiaryMember);
+app.post("/api/addBDTrustBeneficiaryMember", addBDTrustBeneficiaryMember);
+app.post("/updateBDTrustBeneficiaryMember", updateBDTrustBeneficiaryMember);
+app.post("/api/updateBDTrustBeneficiaryMember", updateBDTrustBeneficiaryMember);
+app.post("/deleteBDTrustBeneficiaryMember", deleteBDTrustBeneficiaryMember);
+app.post("/api/deleteBDTrustBeneficiaryMember", deleteBDTrustBeneficiaryMember);
 
 // Expose the Express app as a single Cloud Function named 'api'
 exports.api = functions.https.onRequest(app);

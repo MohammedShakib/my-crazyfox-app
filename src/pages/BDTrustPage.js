@@ -1,20 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { FiEdit2, FiTrash2, FiXCircle, FiSave } from 'react-icons/fi';
+import { FiEdit2, FiTrash2, FiXCircle, FiSave, FiChevronRight, FiChevronDown } from 'react-icons/fi';
 import LoadingScreen from '../components/LoadingScreen';
 
 const formatCr = (bdt) => `${(bdt / 1e7).toFixed(2)} Cr`;
 const numCr = (bdt) => (bdt / 1e7).toFixed(2);
 
 const BD_EP = {
-  portfolio: '/api/getBDTrustPortfolio',
-  addPortfolio: '/api/addBDTrustPortfolioEntry',
-  updatePortfolio: '/api/updateBDTrustPortfolioEntry',
-  beneficiaries: '/api/getBDTrustBeneficiaries',
+  portfolio:      '/api/getBDTrustPortfolio',
+  addPortfolio:   '/api/addBDTrustPortfolioEntry',
+  updatePortfolio:'/api/updateBDTrustPortfolioEntry',
+  beneficiaries:  '/api/getBDTrustBeneficiaries',
   addBeneficiary: '/api/addBDTrustBeneficiary',
   updateBeneficiary: '/api/updateBDTrustBeneficiary',
   deleteBeneficiary: '/api/deleteBDTrustBeneficiary',
-  deposit: '/api/addBDTrustDeposit',
+  deposit:        '/api/addBDTrustDeposit',
+  addMember:      '/api/addBDTrustBeneficiaryMember',
+  updateMember:   '/api/updateBDTrustBeneficiaryMember',
+  deleteMember:   '/api/deleteBDTrustBeneficiaryMember',
 };
 
 const CATEGORY_CONFIG = {
@@ -34,7 +37,13 @@ const CHART_COLORS = {
   bond: '#3b82f6', fdr: '#22c55e', real_estate: '#f59e0b', capital_market: '#ef4444',
 };
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// Returns effective monthly payout in lakh (sum of active members if any, else direct value)
+const getEffectivePayout = (ben) => {
+  if (!ben.members || ben.members.length === 0) return ben.monthly_payout_lakh;
+  return ben.members.filter((m) => m.active !== false).reduce((s, m) => s + m.monthly_payout_lakh, 0);
+};
+
+// ── Sub-components ─────────────────────────────────────────────────────────────
 
 function DonutChart({ slices }) {
   const radius = 54, cx = 70, cy = 70;
@@ -132,15 +141,16 @@ function ModalWrapper({ title, subtitle, onClose, children, error, onSave, savin
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Main component ──────────────────────────────────────────────────────────────
 
 export default function BDTrustPage({ onSwitch }) {
   const [portfolio, setPortfolio] = useState([]);
   const [beneficiaries, setBeneficiaries] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [expandedBenId, setExpandedBenId] = useState(null);
 
-  // Portfolio modal state
+  // Portfolio modal
   const [pModal, setPModal] = useState(null);
   const [pAssetClass, setPAssetClass] = useState('');
   const [pInstitution, setPInstitution] = useState('');
@@ -150,15 +160,21 @@ export default function BDTrustPage({ onSwitch }) {
   const [pTaxRate, setPTaxRate] = useState('');
   const [pError, setPError] = useState('');
 
-  // Beneficiary modal state
+  // Beneficiary (group) modal
   const [bModal, setBModal] = useState(null);
   const [bName, setBName] = useState('');
   const [bType, setBType] = useState('family');
-  const [bPayout, setBPayout] = useState('');
   const [bActive, setBActive] = useState(true);
   const [bError, setBError] = useState('');
 
-  // Deposit modal state
+  // Member modal
+  const [mModal, setMModal] = useState(null); // null | { mode: 'add'|'edit', parentId, member? }
+  const [mName, setMName] = useState('');
+  const [mPayout, setMPayout] = useState('');
+  const [mActive, setMActive] = useState(true);
+  const [mError, setMError] = useState('');
+
+  // Deposit modal
   const [dModal, setDModal] = useState(false);
   const [dAssetId, setDAssetId] = useState('');
   const [dAmountCr, setDAmountCr] = useState('');
@@ -168,10 +184,7 @@ export default function BDTrustPage({ onSwitch }) {
   const fetchAll = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [pRes, bRes] = await Promise.all([
-        fetch(BD_EP.portfolio),
-        fetch(BD_EP.beneficiaries),
-      ]);
+      const [pRes, bRes] = await Promise.all([fetch(BD_EP.portfolio), fetch(BD_EP.beneficiaries)]);
       setPortfolio(await pRes.json());
       setBeneficiaries(await bRes.json());
     } catch (e) {
@@ -183,114 +196,111 @@ export default function BDTrustPage({ onSwitch }) {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // Computed values
+  // Computed
   const totalBDT = portfolio.reduce((s, r) => s + r.amount_bdt, 0);
   const monthlyGross = portfolio.reduce((s, r) => s + (r.amount_bdt * r.rate / 12), 0);
-  const monthlyTax = portfolio.reduce((s, r) => s + (r.amount_bdt * r.rate * r.tax_rate / 12), 0);
-  const monthlyNet = monthlyGross - monthlyTax;
-  const blendedYield = totalBDT > 0
-    ? (portfolio.reduce((s, r) => s + r.amount_bdt * r.rate, 0) / totalBDT) * 100
-    : 0;
+  const monthlyTax   = portfolio.reduce((s, r) => s + (r.amount_bdt * r.rate * r.tax_rate / 12), 0);
+  const monthlyNet   = monthlyGross - monthlyTax;
+  const blendedYield = totalBDT > 0 ? (portfolio.reduce((s, r) => s + r.amount_bdt * r.rate, 0) / totalBDT) * 100 : 0;
 
-  const activeBens = beneficiaries.filter((b) => b.active !== false);
-  const familyPayout   = activeBens.filter((b) => b.type === 'family').reduce((s, b) => s + b.monthly_payout_lakh * 1e5, 0);
-  const ngoPayout      = activeBens.filter((b) => b.type === 'ngo').reduce((s, b) => s + b.monthly_payout_lakh * 1e5, 0);
-  const donationPayout = activeBens.filter((b) => b.type === 'donation').reduce((s, b) => s + b.monthly_payout_lakh * 1e5, 0);
+  const activeBens     = beneficiaries.filter((b) => b.active !== false);
+  const familyPayout   = activeBens.filter((b) => b.type === 'family').reduce((s, b) => s + getEffectivePayout(b) * 1e5, 0);
+  const ngoPayout      = activeBens.filter((b) => b.type === 'ngo').reduce((s, b) => s + getEffectivePayout(b) * 1e5, 0);
+  const donationPayout = activeBens.filter((b) => b.type === 'donation').reduce((s, b) => s + getEffectivePayout(b) * 1e5, 0);
   const totalPayout    = familyPayout + ngoPayout + donationPayout;
   const reinvestment   = monthlyNet - totalPayout;
   const payoutRatio    = monthlyNet > 0 ? (totalPayout / monthlyNet) * 100 : 0;
 
   const postApi = async (url, body) => {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (!res.ok) throw new Error((await res.text()) || `Request failed: ${res.status}`);
     return res.json();
   };
 
-  // Portfolio handlers
+  // ── Portfolio handlers ──
   const openAddPortfolio = () => {
-    setPAssetClass(''); setPInstitution(''); setPCategory('bond');
-    setPAmountCr(''); setPRate(''); setPTaxRate(''); setPError('');
+    setPAssetClass(''); setPInstitution(''); setPCategory('bond'); setPAmountCr(''); setPRate(''); setPTaxRate(''); setPError('');
     setPModal('add');
   };
   const openEditPortfolio = (row) => {
     setPAssetClass(row.asset_class); setPInstitution(row.institution); setPCategory(row.category);
     setPAmountCr(numCr(row.amount_bdt)); setPRate((row.rate * 100).toFixed(2)); setPTaxRate((row.tax_rate * 100).toFixed(1));
-    setPError('');
-    setPModal(row);
+    setPError(''); setPModal(row);
   };
   const savePortfolio = async () => {
     const amountBdt = parseFloat(pAmountCr) * 1e7;
     const rate = parseFloat(pRate) / 100;
     const taxRate = parseFloat(pTaxRate) / 100;
-    if (!pAssetClass.trim() || !pInstitution.trim() || isNaN(amountBdt) || isNaN(rate) || isNaN(taxRate)) {
-      setPError('Please fill in all fields correctly.'); return;
-    }
+    if (!pAssetClass.trim() || !pInstitution.trim() || isNaN(amountBdt) || isNaN(rate) || isNaN(taxRate)) { setPError('Please fill in all fields correctly.'); return; }
     setSaving(true);
     try {
       const body = { asset_class: pAssetClass.trim(), institution: pInstitution.trim(), category: pCategory, amount_bdt: amountBdt, rate, tax_rate: taxRate };
-      const data = pModal === 'add'
-        ? await postApi(BD_EP.addPortfolio, body)
-        : await postApi(BD_EP.updatePortfolio, { id: pModal.id, ...body });
-      setPortfolio(data);
+      setPortfolio(pModal === 'add' ? await postApi(BD_EP.addPortfolio, body) : await postApi(BD_EP.updatePortfolio, { id: pModal.id, ...body }));
       setPModal(null);
     } catch (e) { setPError(e.message); }
     finally { setSaving(false); }
   };
 
-  // Beneficiary handlers
-  const openAddBeneficiary = () => {
-    setBName(''); setBType('family'); setBPayout(''); setBActive(true); setBError('');
-    setBModal('add');
-  };
-  const openEditBeneficiary = (row) => {
-    setBName(row.name); setBType(row.type); setBPayout(String(row.monthly_payout_lakh));
-    setBActive(row.active !== false); setBError('');
-    setBModal(row);
-  };
+  // ── Beneficiary group handlers ──
+  const openAddBeneficiary = () => { setBName(''); setBType('family'); setBActive(true); setBError(''); setBModal('add'); };
+  const openEditBeneficiary = (row) => { setBName(row.name); setBType(row.type); setBActive(row.active !== false); setBError(''); setBModal(row); };
   const saveBeneficiary = async () => {
-    const payout = parseFloat(bPayout);
-    if (!bName.trim() || isNaN(payout) || payout < 0) {
-      setBError('Please fill in all fields correctly.'); return;
-    }
+    if (!bName.trim()) { setBError('Please enter a name.'); return; }
     setSaving(true);
     try {
-      const body = { name: bName.trim(), type: bType, monthly_payout_lakh: payout, active: bActive };
-      const data = bModal === 'add'
-        ? await postApi(BD_EP.addBeneficiary, body)
-        : await postApi(BD_EP.updateBeneficiary, { id: bModal.id, ...body });
-      setBeneficiaries(data);
+      const body = { name: bName.trim(), type: bType, monthly_payout_lakh: 0, active: bActive };
+      setBeneficiaries(bModal === 'add' ? await postApi(BD_EP.addBeneficiary, body) : await postApi(BD_EP.updateBeneficiary, { id: bModal.id, name: bName.trim(), type: bType, active: bActive }));
       setBModal(null);
     } catch (e) { setBError(e.message); }
     finally { setSaving(false); }
   };
   const deleteBeneficiary = async (id) => {
-    if (!window.confirm('Remove this beneficiary?')) return;
+    if (!window.confirm('Remove this group and all its members?')) return;
     setSaving(true);
-    try {
-      setBeneficiaries(await postApi(BD_EP.deleteBeneficiary, { id }));
-    } catch (e) { console.error(e); }
+    try { setBeneficiaries(await postApi(BD_EP.deleteBeneficiary, { id })); }
+    catch (e) { console.error(e); }
     finally { setSaving(false); }
   };
 
-  // Deposit handlers
-  const openDeposit = () => {
-    setDAssetId(portfolio[0]?.id ?? ''); setDAmountCr(''); setDNote(''); setDError('');
-    setDModal(true);
+  // ── Member handlers ──
+  const openAddMember = (parentId) => {
+    setMName(''); setMPayout(''); setMActive(true); setMError('');
+    setMModal({ mode: 'add', parentId });
   };
-  const saveDeposit = async () => {
-    const amount = parseFloat(dAmountCr) * 1e7;
-    if (!dAssetId || isNaN(amount) || amount <= 0) {
-      setDError('Please fill in all fields correctly.'); return;
-    }
+  const openEditMember = (parentId, member) => {
+    setMName(member.name); setMPayout(String(member.monthly_payout_lakh)); setMActive(member.active !== false); setMError('');
+    setMModal({ mode: 'edit', parentId, member });
+  };
+  const saveMember = async () => {
+    const payout = parseFloat(mPayout);
+    if (!mName.trim() || isNaN(payout) || payout < 0) { setMError('Please fill in all fields correctly.'); return; }
     setSaving(true);
     try {
-      setPortfolio(await postApi(BD_EP.deposit, { asset_id: Number(dAssetId), amount_bdt: amount, note: dNote }));
-      setDModal(false);
-    } catch (e) { setDError(e.message); }
+      if (mModal.mode === 'add') {
+        setBeneficiaries(await postApi(BD_EP.addMember, { beneficiary_id: mModal.parentId, name: mName.trim(), monthly_payout_lakh: payout, active: mActive }));
+      } else {
+        setBeneficiaries(await postApi(BD_EP.updateMember, { beneficiary_id: mModal.parentId, member_id: mModal.member.id, name: mName.trim(), monthly_payout_lakh: payout, active: mActive }));
+      }
+      setMModal(null);
+    } catch (e) { setMError(e.message); }
+    finally { setSaving(false); }
+  };
+  const deleteMember = async (parentId, memberId) => {
+    if (!window.confirm('Remove this member?')) return;
+    setSaving(true);
+    try { setBeneficiaries(await postApi(BD_EP.deleteMember, { beneficiary_id: parentId, member_id: memberId })); }
+    catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  // ── Deposit handlers ──
+  const openDeposit = () => { setDAssetId(portfolio[0]?.id ?? ''); setDAmountCr(''); setDNote(''); setDError(''); setDModal(true); };
+  const saveDeposit = async () => {
+    const amount = parseFloat(dAmountCr) * 1e7;
+    if (!dAssetId || isNaN(amount) || amount <= 0) { setDError('Please fill in all fields correctly.'); return; }
+    setSaving(true);
+    try { setPortfolio(await postApi(BD_EP.deposit, { asset_id: Number(dAssetId), amount_bdt: amount, note: dNote })); setDModal(false); }
+    catch (e) { setDError(e.message); }
     finally { setSaving(false); }
   };
 
@@ -305,12 +315,9 @@ export default function BDTrustPage({ onSwitch }) {
         {/* ── Header ── */}
         <header className="flex items-center justify-between mb-10 flex-wrap gap-4">
           <Link to="/" className="flex items-center text-sm text-gray-400 hover:text-blue-400 transition-colors">
-            <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-            </svg>
+            <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
             Back to Home
           </Link>
-
           <div className="flex flex-col items-end gap-3">
             <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1">
               <button onClick={() => onSwitch && onSwitch('international')}
@@ -330,10 +337,10 @@ export default function BDTrustPage({ onSwitch }) {
 
         {/* ── Hero Stats ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <StatCard label="Total Portfolio" value={formatCr(totalBDT)} subValue="BDT" />
-          <StatCard label="Monthly Net Income" value={formatCr(monthlyNet)} subValue={`${formatCr(monthlyGross)} gross`} color="text-green-400" />
-          <StatCard label="Blended Yield" value={`${blendedYield.toFixed(2)}%`} subValue="weighted avg" color="text-blue-400" />
-          <StatCard label="Monthly Payouts" value={formatCr(totalPayout)} subValue={`${payoutRatio.toFixed(0)}% of net`} color="text-yellow-400" />
+          <StatCard label="Total Portfolio"     value={formatCr(totalBDT)}   subValue="BDT" />
+          <StatCard label="Monthly Net Income"  value={formatCr(monthlyNet)} subValue={`${formatCr(monthlyGross)} gross`} color="text-green-400" />
+          <StatCard label="Blended Yield"       value={`${blendedYield.toFixed(2)}%`} subValue="weighted avg" color="text-blue-400" />
+          <StatCard label="Monthly Payouts"     value={formatCr(totalPayout)} subValue={`${payoutRatio.toFixed(0)}% of net`} color="text-yellow-400" />
         </div>
 
         {/* ── Portfolio Summary ── */}
@@ -341,24 +348,17 @@ export default function BDTrustPage({ onSwitch }) {
           <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
             <h2 className="text-xl font-semibold text-white">Portfolio Summary</h2>
             <div className="flex gap-2 flex-wrap">
-              <button onClick={openDeposit}
-                className="flex items-center gap-2 px-4 py-1.5 rounded-md bg-green-700 hover:bg-green-600 text-white text-sm font-medium transition-colors">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
-                Add Funds
+              <button onClick={openDeposit} className="flex items-center gap-2 px-4 py-1.5 rounded-md bg-green-700 hover:bg-green-600 text-white text-sm font-medium transition-colors">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>Add Funds
               </button>
-              <button onClick={openAddPortfolio}
-                className="flex items-center gap-2 px-4 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
-                Add Asset
+              <button onClick={openAddPortfolio} className="flex items-center gap-2 px-4 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>Add Asset
               </button>
             </div>
           </div>
-
           <div className="flex flex-col md:flex-row gap-6">
             <div className="flex flex-col items-center gap-3 w-full md:w-44 shrink-0">
-              <div className="w-36 h-36">
-                <DonutChart slices={donutSlices} />
-              </div>
+              <div className="w-36 h-36"><DonutChart slices={donutSlices} /></div>
               <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
                 {portfolio.map((r) => {
                   const cfg = CATEGORY_CONFIG[r.category];
@@ -371,9 +371,8 @@ export default function BDTrustPage({ onSwitch }) {
                 })}
               </div>
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
-              <StatCard label="Annual Gross Income"  value={formatCr(monthlyGross * 12)} subValue={`${blendedYield.toFixed(2)}% avg rate`} />
+              <StatCard label="Annual Gross Income" value={formatCr(monthlyGross * 12)} subValue={`${blendedYield.toFixed(2)}% avg rate`} />
               <StatCard label="Annual Tax Deducted"  value={formatCr(monthlyTax * 12)}   subValue="avg across assets"     color="text-red-400" />
               <StatCard label="Annual Net Income"    value={formatCr(monthlyNet * 12)}   subValue="after tax"             color="text-green-400" />
               <StatCard label="Annual Reinvestment"  value={formatCr(reinvestment * 12)} subValue="net minus payouts"     color={reinvestment >= 0 ? 'text-blue-400' : 'text-red-400'} />
@@ -383,9 +382,7 @@ export default function BDTrustPage({ onSwitch }) {
 
         {/* ── Asset Allocation Table ── */}
         <div className="card shadow-lg border border-gray-700/50 overflow-hidden md:overflow-x-auto mb-8">
-          <div className="px-6 py-4 border-b border-gray-700">
-            <h2 className="text-lg font-semibold text-white">Asset Allocation</h2>
-          </div>
+          <div className="px-6 py-4 border-b border-gray-700"><h2 className="text-lg font-semibold text-white">Asset Allocation</h2></div>
           <table className="w-full text-sm text-left text-gray-300">
             <thead className="text-xs text-gray-400 uppercase table-header-bg">
               <tr>
@@ -416,9 +413,7 @@ export default function BDTrustPage({ onSwitch }) {
                     <td className="px-4 py-3 hidden md:table-cell text-red-400">{(row.tax_rate * 100).toFixed(1)}%</td>
                     <td className="px-4 py-3 text-green-400 font-semibold">{formatCr(mNet)}</td>
                     <td className="px-4 py-3 hidden md:table-cell">
-                      <button onClick={() => openEditPortfolio(row)} className="text-blue-400 hover:text-blue-300">
-                        <FiEdit2 size={16} />
-                      </button>
+                      <button onClick={() => openEditPortfolio(row)} className="text-blue-400 hover:text-blue-300"><FiEdit2 size={16} /></button>
                     </td>
                   </tr>
                 );
@@ -429,10 +424,8 @@ export default function BDTrustPage({ onSwitch }) {
                 <td colSpan="8" className="px-4 py-3">
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-500">{portfolio.length} assets · {formatCr(totalBDT)} total</span>
-                    <button onClick={openAddPortfolio}
-                      className="flex items-center gap-2 px-4 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
-                      Add Asset
+                    <button onClick={openAddPortfolio} className="flex items-center gap-2 px-4 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>Add Asset
                     </button>
                   </div>
                 </td>
@@ -443,20 +436,17 @@ export default function BDTrustPage({ onSwitch }) {
 
         {/* ── Monthly Cash Flow ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-
           <div className="card p-6 border border-gray-700/50">
             <h2 className="text-lg font-semibold text-white mb-4">Monthly Cash Flow</h2>
-            <FlowRow label="Gross Income"     amount_bdt={monthlyGross}    colorClass="text-white" />
-            <FlowRow label="Tax Deduction"    amount_bdt={monthlyTax}      colorClass="text-red-400" subLabel="(withheld)" />
-            <FlowRow label="Net Income"       amount_bdt={monthlyNet}      colorClass="text-green-400" />
+            <FlowRow label="Gross Income"    amount_bdt={monthlyGross}    colorClass="text-white" />
+            <FlowRow label="Tax Deduction"   amount_bdt={monthlyTax}      colorClass="text-red-400" subLabel="(withheld)" />
+            <FlowRow label="Net Income"      amount_bdt={monthlyNet}      colorClass="text-green-400" />
             <div className="pt-0.5">
-              <FlowRow label="Family Payouts"    amount_bdt={familyPayout}   colorClass="text-blue-400"   indent />
-              <FlowRow label="NGO Disbursement"  amount_bdt={ngoPayout}      colorClass="text-green-400"  indent />
-              <FlowRow label="Donations"         amount_bdt={donationPayout} colorClass="text-yellow-400" indent />
+              <FlowRow label="Family Payouts"   amount_bdt={familyPayout}   colorClass="text-blue-400"   indent />
+              <FlowRow label="NGO Disbursement" amount_bdt={ngoPayout}      colorClass="text-green-400"  indent />
+              <FlowRow label="Donations"        amount_bdt={donationPayout} colorClass="text-yellow-400" indent />
               <div className="flex items-center justify-between py-2.5 pl-6 border-b border-gray-700/50">
-                <span className="flex items-center gap-1.5 text-sm text-gray-300">
-                  <span className="text-gray-600 text-xs">└</span> Total Payouts
-                </span>
+                <span className="flex items-center gap-1.5 text-sm text-gray-300"><span className="text-gray-600 text-xs">└</span> Total Payouts</span>
                 <span className="text-sm font-semibold text-orange-400">{formatCr(totalPayout)}</span>
               </div>
             </div>
@@ -470,8 +460,8 @@ export default function BDTrustPage({ onSwitch }) {
             <h2 className="text-lg font-semibold text-white mb-4">Payout Distribution</h2>
             <div className="space-y-4">
               {[
-                { label: 'Family',    value: familyPayout,   barColor: 'bg-blue-500',   textColor: 'text-blue-400' },
-                { label: 'NGO',       value: ngoPayout,      barColor: 'bg-green-500',  textColor: 'text-green-400' },
+                { label: 'Family', value: familyPayout, barColor: 'bg-blue-500', textColor: 'text-blue-400' },
+                { label: 'NGO', value: ngoPayout, barColor: 'bg-green-500', textColor: 'text-green-400' },
                 { label: 'Donations', value: donationPayout, barColor: 'bg-yellow-500', textColor: 'text-yellow-400' },
               ].map((item) => (
                 <div key={item.label}>
@@ -501,15 +491,16 @@ export default function BDTrustPage({ onSwitch }) {
           </div>
         </div>
 
-        {/* ── Beneficiaries Table ── */}
+        {/* ── Beneficiaries Table (two-level) ── */}
         <div className="card shadow-lg border border-gray-700/50 overflow-hidden md:overflow-x-auto">
           <div className="px-6 py-4 border-b border-gray-700">
             <h2 className="text-lg font-semibold text-white">Beneficiaries</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Click ▶ to expand a group and manage individual members</p>
           </div>
           <table className="w-full text-sm text-left text-gray-300">
             <thead className="text-xs text-gray-400 uppercase table-header-bg">
               <tr>
-                <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">Group / Member</th>
                 <th className="px-4 py-3 hidden sm:table-cell">Type</th>
                 <th className="px-4 py-3">Monthly Payout</th>
                 <th className="px-4 py-3 hidden md:table-cell">Status</th>
@@ -518,31 +509,87 @@ export default function BDTrustPage({ onSwitch }) {
             </thead>
             <tbody>
               {beneficiaries.length === 0 && (
-                <tr><td colSpan="5" className="px-4 py-8 text-center text-gray-500">No beneficiaries added yet.</td></tr>
+                <tr><td colSpan="5" className="px-4 py-8 text-center text-gray-500">No beneficiary groups added yet.</td></tr>
               )}
               {beneficiaries.map((row) => {
-                const typeCfg = BENEFICIARY_CONFIG[row.type] || { label: row.type, cls: 'chip chip-gray' };
+                const typeCfg  = BENEFICIARY_CONFIG[row.type] || { label: row.type, cls: 'chip chip-gray' };
                 const isActive = row.active !== false;
+                const isExpanded = expandedBenId === row.id;
+                const members  = row.members || [];
+                const effectivePayout = getEffectivePayout(row);
+
                 return (
-                  <tr key={row.id} className={`border-b table-row-border transition-colors hover:bg-gray-800/50 ${!isActive ? 'opacity-50' : ''}`}>
-                    <td className="px-4 py-3 font-medium text-gray-100">
-                      {row.name}
-                      <div className="sm:hidden mt-0.5">
-                        <span className={typeCfg.cls}>{typeCfg.label}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 hidden sm:table-cell"><span className={typeCfg.cls}>{typeCfg.label}</span></td>
-                    <td className="px-4 py-3 text-white font-semibold">{row.monthly_payout_lakh.toFixed(2)} L</td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      <span className={`chip ${isActive ? 'chip-green' : 'chip-gray'}`}>{isActive ? 'Active' : 'Inactive'}</span>
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      <div className="flex items-center gap-3">
-                        <button onClick={() => openEditBeneficiary(row)} className="text-blue-400 hover:text-blue-300"><FiEdit2 size={16} /></button>
-                        <button onClick={() => deleteBeneficiary(row.id)} className="text-red-500 hover:text-red-400"><FiTrash2 size={16} /></button>
-                      </div>
-                    </td>
-                  </tr>
+                  <React.Fragment key={row.id}>
+                    {/* ── Group row ── */}
+                    <tr className={`border-b table-row-border transition-colors hover:bg-gray-800/30 ${!isActive ? 'opacity-50' : ''}`}>
+                      <td className="px-4 py-3 font-medium text-gray-100">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setExpandedBenId(isExpanded ? null : row.id)}
+                            className="text-gray-500 hover:text-blue-400 transition-colors flex-shrink-0"
+                          >
+                            {isExpanded ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />}
+                          </button>
+                          <span>{row.name}</span>
+                          {members.length > 0 && (
+                            <span className="chip chip-gray text-xs">{members.length} members</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 hidden sm:table-cell"><span className={typeCfg.cls}>{typeCfg.label}</span></td>
+                      <td className="px-4 py-3 text-white font-semibold">
+                        {effectivePayout.toFixed(2)} L
+                        {members.length > 0 && <span className="text-xs text-gray-500 ml-1">(sum)</span>}
+                      </td>
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        <span className={`chip ${isActive ? 'chip-green' : 'chip-gray'}`}>{isActive ? 'Active' : 'Inactive'}</span>
+                      </td>
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        <div className="flex items-center gap-3">
+                          <button onClick={() => openEditBeneficiary(row)} className="text-blue-400 hover:text-blue-300"><FiEdit2 size={16} /></button>
+                          <button onClick={() => deleteBeneficiary(row.id)} className="text-red-500 hover:text-red-400"><FiTrash2 size={16} /></button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* ── Member rows (expanded) ── */}
+                    {isExpanded && members.map((member) => (
+                      <tr key={`m-${member.id}`} className="border-b table-row-border bg-gray-900/60 hover:bg-gray-800/40 transition-colors">
+                        <td className="px-4 py-2.5 pl-12 text-gray-400">
+                          <span className="flex items-center gap-2">
+                            <span className="text-gray-600">└</span>
+                            {member.name}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 hidden sm:table-cell"></td>
+                        <td className="px-4 py-2.5 text-gray-200">{member.monthly_payout_lakh.toFixed(2)} L</td>
+                        <td className="px-4 py-2.5 hidden md:table-cell">
+                          <span className={`chip ${member.active !== false ? 'chip-green' : 'chip-gray'}`}>
+                            {member.active !== false ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 hidden md:table-cell">
+                          <div className="flex items-center gap-3">
+                            <button onClick={() => openEditMember(row.id, member)} className="text-blue-400 hover:text-blue-300"><FiEdit2 size={15} /></button>
+                            <button onClick={() => deleteMember(row.id, member.id)} className="text-red-500 hover:text-red-400"><FiTrash2 size={15} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+
+                    {/* ── Add Member row (expanded) ── */}
+                    {isExpanded && (
+                      <tr className="border-b table-row-border bg-gray-900/60">
+                        <td colSpan="5" className="px-4 py-2 pl-12">
+                          <button onClick={() => openAddMember(row.id)}
+                            className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors">
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
+                            Add Member
+                          </button>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
@@ -551,12 +598,12 @@ export default function BDTrustPage({ onSwitch }) {
                 <td colSpan="5" className="px-4 py-3">
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-500">
-                      {activeBens.length} active · {formatCr(totalPayout)}/month total
+                      {activeBens.length} active groups · {formatCr(totalPayout)}/month total
                     </span>
                     <button onClick={openAddBeneficiary}
                       className="flex items-center gap-2 px-4 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
-                      Add Beneficiary
+                      Add Group
                     </button>
                   </div>
                 </td>
@@ -569,19 +616,12 @@ export default function BDTrustPage({ onSwitch }) {
 
       {/* ── Portfolio Modal ── */}
       {pModal !== null && (
-        <ModalWrapper
-          title={pModal === 'add' ? 'Add Portfolio Asset' : 'Edit Portfolio Asset'}
+        <ModalWrapper title={pModal === 'add' ? 'Add Portfolio Asset' : 'Edit Portfolio Asset'}
           subtitle={pModal === 'add' ? 'Add a new asset to the BD Trust portfolio.' : "Update this asset's details."}
-          onClose={() => setPModal(null)}
-          error={pError}
-          onSave={savePortfolio}
-          saving={saving}
-          saveLabel={pModal === 'add' ? 'Add Asset' : 'Save Changes'}
-        >
-          <MInput label="Asset Class" value={pAssetClass} onChange={(e) => setPAssetClass(e.target.value)}
-            placeholder="e.g. Government Treasury Bond" />
-          <MInput label="Institution" value={pInstitution} onChange={(e) => setPInstitution(e.target.value)}
-            placeholder="e.g. Bangladesh Bank" />
+          onClose={() => setPModal(null)} error={pError} onSave={savePortfolio} saving={saving}
+          saveLabel={pModal === 'add' ? 'Add Asset' : 'Save Changes'}>
+          <MInput label="Asset Class" value={pAssetClass} onChange={(e) => setPAssetClass(e.target.value)} placeholder="e.g. Government Treasury Bond" />
+          <MInput label="Institution" value={pInstitution} onChange={(e) => setPInstitution(e.target.value)} placeholder="e.g. Bangladesh Bank" />
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1.5">Category</label>
             <select value={pCategory} onChange={(e) => setPCategory(e.target.value)}
@@ -593,29 +633,20 @@ export default function BDTrustPage({ onSwitch }) {
             </select>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <MInput label="Amount" hint="(Cr BDT)" type="number" min="0" step="0.01"
-              value={pAmountCr} onChange={(e) => setPAmountCr(e.target.value)} placeholder="175.00" />
-            <MInput label="Rate" hint="(%)" type="number" step="0.01"
-              value={pRate} onChange={(e) => setPRate(e.target.value)} placeholder="12.5" />
-            <MInput label="Tax Rate" hint="(%)" type="number" step="0.1"
-              value={pTaxRate} onChange={(e) => setPTaxRate(e.target.value)} placeholder="5.0" />
+            <MInput label="Amount" hint="(Cr BDT)" type="number" min="0" step="0.01" value={pAmountCr} onChange={(e) => setPAmountCr(e.target.value)} placeholder="175.00" />
+            <MInput label="Rate" hint="(%)" type="number" step="0.01" value={pRate} onChange={(e) => setPRate(e.target.value)} placeholder="12.5" />
+            <MInput label="Tax Rate" hint="(%)" type="number" step="0.1" value={pTaxRate} onChange={(e) => setPTaxRate(e.target.value)} placeholder="5.0" />
           </div>
         </ModalWrapper>
       )}
 
-      {/* ── Beneficiary Modal ── */}
+      {/* ── Beneficiary Group Modal ── */}
       {bModal !== null && (
-        <ModalWrapper
-          title={bModal === 'add' ? 'Add Beneficiary' : 'Edit Beneficiary'}
-          subtitle="Monthly payout is in Lakh BDT (e.g. 5 = 5 lakh = ৳500,000)."
-          onClose={() => setBModal(null)}
-          error={bError}
-          onSave={saveBeneficiary}
-          saving={saving}
-          saveLabel={bModal === 'add' ? 'Add Beneficiary' : 'Save Changes'}
-        >
-          <MInput label="Name" value={bName} onChange={(e) => setBName(e.target.value)}
-            placeholder="e.g. Rahman Family Monthly" />
+        <ModalWrapper title={bModal === 'add' ? 'Add Beneficiary Group' : 'Edit Beneficiary Group'}
+          subtitle="A group holds individual members. Add members by expanding the row."
+          onClose={() => setBModal(null)} error={bError} onSave={saveBeneficiary} saving={saving}
+          saveLabel={bModal === 'add' ? 'Add Group' : 'Save Changes'}>
+          <MInput label="Group Name" value={bName} onChange={(e) => setBName(e.target.value)} placeholder="e.g. Rahman Family Monthly" />
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1.5">Type</label>
             <select value={bType} onChange={(e) => setBType(e.target.value)}
@@ -625,10 +656,24 @@ export default function BDTrustPage({ onSwitch }) {
               <option value="donation">Donation</option>
             </select>
           </div>
-          <MInput label="Monthly Payout" hint="(Lakh BDT)" type="number" min="0" step="0.01"
-            value={bPayout} onChange={(e) => setBPayout(e.target.value)} placeholder="e.g. 5.0" />
           <label className="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" checked={bActive} onChange={(e) => setBActive(e.target.checked)} className="w-4 h-4 rounded" />
+            <span className="text-sm text-gray-300">Active</span>
+          </label>
+        </ModalWrapper>
+      )}
+
+      {/* ── Member Modal ── */}
+      {mModal !== null && (
+        <ModalWrapper title={mModal.mode === 'add' ? 'Add Member' : 'Edit Member'}
+          subtitle="Monthly payout in Lakh BDT (e.g. 3 = 3 lakh = ৳300,000)."
+          onClose={() => setMModal(null)} error={mError} onSave={saveMember} saving={saving}
+          saveLabel={mModal.mode === 'add' ? 'Add Member' : 'Save Changes'}>
+          <MInput label="Name" value={mName} onChange={(e) => setMName(e.target.value)} placeholder="e.g. Father" />
+          <MInput label="Monthly Payout" hint="(Lakh BDT)" type="number" min="0" step="0.01"
+            value={mPayout} onChange={(e) => setMPayout(e.target.value)} placeholder="e.g. 3.0" />
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" checked={mActive} onChange={(e) => setMActive(e.target.checked)} className="w-4 h-4 rounded" />
             <span className="text-sm text-gray-300">Active (included in payout calculations)</span>
           </label>
         </ModalWrapper>
@@ -636,28 +681,18 @@ export default function BDTrustPage({ onSwitch }) {
 
       {/* ── Deposit Modal ── */}
       {dModal && (
-        <ModalWrapper
-          title="Add Funds"
-          subtitle="Deposit funds into an existing portfolio asset."
-          onClose={() => setDModal(false)}
-          error={dError}
-          onSave={saveDeposit}
-          saving={saving}
-          saveLabel="Add Funds"
-        >
+        <ModalWrapper title="Add Funds" subtitle="Deposit funds into an existing portfolio asset."
+          onClose={() => setDModal(false)} error={dError} onSave={saveDeposit} saving={saving} saveLabel="Add Funds">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1.5">Select Asset</label>
             <select value={dAssetId} onChange={(e) => setDAssetId(e.target.value)}
               className="w-full rounded-md border border-blue-500/50 bg-gray-800 p-3 text-white outline-none focus:ring-2 focus:ring-blue-400">
-              {portfolio.map((r) => (
-                <option key={r.id} value={r.id}>{r.asset_class} ({formatCr(r.amount_bdt)})</option>
-              ))}
+              {portfolio.map((r) => <option key={r.id} value={r.id}>{r.asset_class} ({formatCr(r.amount_bdt)})</option>)}
             </select>
           </div>
           <MInput label="Amount" hint="(Crore BDT)" type="number" min="0" step="0.01"
             value={dAmountCr} onChange={(e) => setDAmountCr(e.target.value)} placeholder="e.g. 10.00" />
-          <MInput label="Note" value={dNote} onChange={(e) => setDNote(e.target.value)}
-            placeholder="e.g. Q3 2026 reinvestment" />
+          <MInput label="Note" value={dNote} onChange={(e) => setDNote(e.target.value)} placeholder="e.g. Q3 2026 reinvestment" />
         </ModalWrapper>
       )}
 
