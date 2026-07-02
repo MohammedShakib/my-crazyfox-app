@@ -68,7 +68,6 @@ export default function SelectionPage() {
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white">
               {greeting}, Shakib
             </h1>
-            <div className="avatar-badge">S</div>
           </motion.div>
 
           {/* Live Time + Date */}
