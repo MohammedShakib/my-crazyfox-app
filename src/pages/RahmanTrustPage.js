@@ -3,6 +3,57 @@ import { Link } from 'react-router-dom';
 import { FiEdit2, FiSave, FiXCircle, FiGrid, FiCopy } from 'react-icons/fi';
 import LoadingScreen from '../components/LoadingScreen';
 
+const CHART_COLORS = ['#3b82f6', '#8b5cf6', '#06b6d4', '#22c55e', '#f59e0b', '#ef4444', '#ec4899'];
+
+function DonutChart({ data, total }) {
+  const radius = 54;
+  const cx = 70;
+  const cy = 70;
+  const circumference = 2 * Math.PI * radius;
+  let cumulativeFraction = 0;
+
+  return (
+    <svg viewBox="0 0 140 140" className="w-full h-full">
+      <circle cx={cx} cy={cy} r={radius} fill="none" stroke="#1f2937" strokeWidth="18" />
+      {data.map((seg, i) => {
+        const fraction = seg.value / total;
+        const dash = fraction * circumference;
+        const offset = -(cumulativeFraction * circumference);
+        cumulativeFraction += fraction;
+        return (
+          <circle
+            key={i}
+            cx={cx} cy={cy} r={radius}
+            fill="none"
+            stroke={CHART_COLORS[i % CHART_COLORS.length]}
+            strokeWidth="18"
+            strokeDasharray={`${dash} ${circumference - dash}`}
+            strokeDashoffset={offset}
+            transform={`rotate(-90 ${cx} ${cy})`}
+            strokeLinecap="butt"
+          />
+        );
+      })}
+      <text x={cx} y={cy - 6} textAnchor="middle" fill="white" fontSize="11" fontWeight="700">
+        {data.length}
+      </text>
+      <text x={cx} y={cy + 10} textAnchor="middle" fill="#9ca3af" fontSize="8">
+        banks
+      </text>
+    </svg>
+  );
+}
+
+function MandateChip({ mandate, rate }) {
+  const m = mandate.toLowerCase();
+  let cls = 'chip ';
+  if (m.includes('stable'))     cls += 'chip-blue';
+  else if (m.includes('balanced')) cls += 'chip-yellow';
+  else if (m.includes('aggressive')) cls += 'chip-red';
+  else cls += 'chip-gray';
+  return <span className={cls}>{mandate} ({(rate * 100).toFixed(1)}%)</span>;
+}
+
 const RAHMAN_ENDPOINTS = {
     fetch: '/api/getRahmanTrustData',
     update: '/api/updateRahmanTrustData'
@@ -58,6 +109,7 @@ export default function RahmanTrustPage() {
     // --- State তৈরি করা ---
     const [portfolioData, setPortfolioData] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isAnnual, setIsAnnual] = useState(true);
     const [editRowId, setEditRowId] = useState(null);
     const [editRate, setEditRate] = useState('0');
     const [editValue, setEditValue] = useState('0');
@@ -308,18 +360,38 @@ export default function RahmanTrustPage() {
                 {/* ডাইনামিক সামারি কার্ড (এটি উপরেই থাকছে) */}
                 <div className="card p-6 md:p-8 mb-10 shadow-lg shadow-green-900/10 border border-gray-700/50">
                     <h2 className="text-xl font-semibold text-white mb-6">Global Portfolio Summary</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-gray-300">
-                        <div className="card p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
-                            <div className="text-sm text-gray-400 mb-1">Total Portfolio Value</div>
-                            <div className="text-2xl lg:text-3xl font-bold text-white">{formatCurrencyForTable(totalValue)}</div>
+                    <div className="flex flex-col md:flex-row gap-6">
+                        {/* Donut Chart */}
+                        <div className="flex flex-col items-center justify-center gap-3 w-full md:w-40 shrink-0">
+                            <div className="w-32 h-32">
+                                <DonutChart
+                                    data={portfolioData.map((r) => ({ value: r.value }))}
+                                    total={totalValue}
+                                />
+                            </div>
+                            <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
+                                {portfolioData.map((r, i) => (
+                                    <span key={r.id} className="flex items-center gap-1 text-xs text-gray-400">
+                                        <span className="w-2 h-2 rounded-full inline-block" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                                        {r.manager}
+                                    </span>
+                                ))}
+                            </div>
                         </div>
-                        <div className="card p-4 bg-gray-800/50 border border-green-500/30 rounded-lg">
-                            <div className="text-sm text-gray-400 mb-1">Projected Annual Gain</div>
-                            <div className="text-2xl lg:text-3xl font-bold profit">{formatCurrencyWithSign(totalProjectedGain)}</div>
-                        </div>
-                        <div className="card p-4 bg-gray-800/50 border border-blue-500/30 rounded-lg">
-                            <div className="text-sm text-gray-400 mb-1">Blended Growth Rate</div>
-                            <div className="text-2xl lg:text-3xl font-bold text-white">{blendedRate.toFixed(2)}%</div>
+                        {/* Stats */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1 text-gray-300">
+                            <div className="card p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
+                                <div className="text-sm text-gray-400 mb-1">Total Portfolio Value</div>
+                                <div className="text-2xl lg:text-3xl font-bold text-white">{formatCurrencyForTable(totalValue)}</div>
+                            </div>
+                            <div className="card p-4 bg-gray-800/50 border border-green-500/30 rounded-lg">
+                                <div className="text-sm text-gray-400 mb-1">Projected Annual Gain</div>
+                                <div className="text-2xl lg:text-3xl font-bold profit">{formatCurrencyWithSign(totalProjectedGain)}</div>
+                            </div>
+                            <div className="card p-4 bg-gray-800/50 border border-blue-500/30 rounded-lg">
+                                <div className="text-sm text-gray-400 mb-1">Blended Growth Rate</div>
+                                <div className="text-2xl lg:text-3xl font-bold text-white">{blendedRate.toFixed(2)}%</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -478,9 +550,8 @@ export default function RahmanTrustPage() {
                                             {formatMillions(row.value)}
                                         </td>
                                         
-                                        {/* এডিটেবল সেল */}
                                         <td className="px-4 py-3 hidden md:table-cell">
-                                            <span>{row.mandate} ({(row.rate * 100).toFixed(1)}%)</span>
+                                            <MandateChip mandate={row.mandate} rate={row.rate} />
                                         </td>
                                         
                                         {/* ডাইনামিক সেল */}
@@ -520,28 +591,51 @@ export default function RahmanTrustPage() {
 
                 {/* --- নতুন: ইনকাম সামারি কার্ড (শেষে) --- */}
                 <div className="card p-6 md:p-8 mt-10 shadow-lg shadow-green-900/10 border border-gray-700/50">
-                    <h2 className="text-xl font-semibold text-white mb-6">Estimated Income Figures</h2>
-                    
-                    {/* Annual Income */}
-                    <div className="mb-6">
-                        <h3 className="text-lg font-semibold text-gray-300 mb-1">Annual Income</h3>
-                        <p className="text-3xl font-bold text-white">
-                            {formatCurrencyForTable(totalProjectedGain)}
-                        </p>
-                        <p className="text-sm text-gray-400 mt-1">
-                            (This is calculated as {blendedRate.toFixed(2)}% of your {formatCurrencyForTable(totalValue)} capital.)
-                        </p>
+                    <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+                        <h2 className="text-xl font-semibold text-white">Estimated Income Figures</h2>
+                        {/* Toggle */}
+                        <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1">
+                            <button
+                                onClick={() => setIsAnnual(true)}
+                                className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${isAnnual ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                            >
+                                Annual
+                            </button>
+                            <button
+                                onClick={() => setIsAnnual(false)}
+                                className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${!isAnnual ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                            >
+                                Monthly
+                            </button>
+                        </div>
                     </div>
 
-                    {/* Monthly Income */}
-                    <div>
-                        <h3 className="text-lg font-semibold text-gray-300 mb-1">Monthly Income</h3>
-                        <p className="text-3xl font-bold text-white">
-                            {formatCurrencyForTable(monthlyIncome)}
-                        </p>
-                        <p className="text-sm text-gray-400 mt-1">
-                            (This is the {formatCurrencyForTable(totalProjectedGain)} annual income divided by 12 months.)
-                        </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div>
+                            <p className="text-sm text-gray-400 mb-1">{isAnnual ? 'Annual' : 'Monthly'} Income</p>
+                            <p className="text-4xl font-bold text-white">
+                                {formatCurrencyForTable(isAnnual ? totalProjectedGain : monthlyIncome)}
+                            </p>
+                            <p className="text-sm text-gray-500 mt-2">
+                                {isAnnual
+                                    ? `${blendedRate.toFixed(2)}% of ${formatCurrencyForTable(totalValue)} capital`
+                                    : `${formatCurrencyForTable(totalProjectedGain)} annual ÷ 12 months`}
+                            </p>
+                        </div>
+                        <div className="flex flex-col justify-center gap-2">
+                            <div className="flex justify-between text-sm border-b border-gray-700/50 pb-2">
+                                <span className="text-gray-400">Annual</span>
+                                <span className="text-white font-semibold">{formatCurrencyForTable(totalProjectedGain)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm border-b border-gray-700/50 pb-2">
+                                <span className="text-gray-400">Monthly</span>
+                                <span className="text-white font-semibold">{formatCurrencyForTable(monthlyIncome)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-400">Weekly (est.)</span>
+                                <span className="text-white font-semibold">{formatCurrencyForTable(totalProjectedGain / 52)}</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

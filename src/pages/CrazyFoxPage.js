@@ -1,7 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiEdit2, FiSave, FiXCircle } from 'react-icons/fi';
+import { animate } from 'framer-motion';
 import LoadingScreen from '../components/LoadingScreen';
+
+function AnimatedStat({ value, format, className }) {
+  const [current, setCurrent] = useState(0);
+  useEffect(() => {
+    if (!value) return;
+    const controls = animate(0, value, {
+      duration: 1.8,
+      ease: [0.16, 1, 0.3, 1],
+      onUpdate: setCurrent,
+    });
+    return controls.stop;
+  }, [value]);
+  return <span className={className}>{format(current)}</span>;
+}
 
 const CRAZYFOX_ENDPOINTS = {
     fetch: '/api/getCrazyFoxData',
@@ -253,20 +268,27 @@ export default function CrazyFoxPage() {
                         {/* ... (Summary Item 1 & 2 unchanged) ... */}
                         <div className="card p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
                             <div className="text-sm text-gray-400 mb-1">Starting Capital (Y1)</div>
-                            <div className="text-2xl lg:text-3xl font-bold text-white">{formatCurrencyForTable(30e6)}</div>
+                            <div className="text-2xl lg:text-3xl font-bold text-white">
+                                <AnimatedStat value={30e6} format={formatCurrencyForTable} />
+                            </div>
                         </div>
                         <div className="card p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
                             <div className="text-sm text-gray-400 mb-1">Total Equity Injected</div>
-                            <div className="text-2xl lg:text-3xl font-bold text-white">{formatCurrencyForTable(200e6)}</div>
+                            <div className="text-2xl lg:text-3xl font-bold text-white">
+                                <AnimatedStat value={200e6} format={formatCurrencyForTable} />
+                            </div>
                         </div>
-                        {/* (আইটেম ৩ ও ৪ এখন ডাইনামিক) */}
                         <div className="card p-4 bg-gray-800/50 border border-green-500/30 rounded-lg">
                             <div className="text-sm text-gray-400 mb-1">Total Net Profit</div>
-                            <div className="text-2xl lg:text-3xl font-bold profit">{formatCurrencyV2(totalNetProfit)}</div>
+                            <div className="text-2xl lg:text-3xl font-bold profit">
+                                <AnimatedStat value={totalNetProfit} format={formatCurrencyV2} />
+                            </div>
                         </div>
                         <div className="card p-4 bg-gray-800/50 border border-blue-500/30 rounded-lg">
                             <div className="text-sm text-gray-400 mb-1">Ending Equity (Y20)</div>
-                            <div className="text-2xl lg:text-3xl font-bold text-white">{formatCurrencyForTable(endingEquity)}</div>
+                            <div className="text-2xl lg:text-3xl font-bold text-white">
+                                <AnimatedStat value={endingEquity} format={formatCurrencyForTable} />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -274,7 +296,7 @@ export default function CrazyFoxPage() {
                 {/* Simulation Table Card */}
                 <div className="card shadow-lg shadow-blue-900/10 border border-gray-700/50 overflow-hidden md:overflow-x-auto">
                     <table className="w-full table-fixed text-sm text-left text-gray-300">
-                        <thead className="text-xs text-gray-400 uppercase table-header-bg">
+                        <thead className="text-xs text-gray-400 uppercase table-header-bg sticky top-0 z-20">
                             <tr>
                                 <th scope="col" className="px-3 py-3 sticky-col w-[18%] md:w-auto whitespace-normal break-words">Year</th>
                                 <th scope="col" className="px-3 py-3 w-[32%] md:w-auto whitespace-normal break-words">Starting Equity (AUM)</th>
@@ -302,7 +324,17 @@ export default function CrazyFoxPage() {
 
                                 return (
                                     <tr key={row.year} className={rowClass}>
-                                        <td className="px-3 py-3 font-medium text-gray-100 sticky-col">{row.year}</td>
+                                        <td className="px-3 py-3 font-medium text-gray-100 sticky-col">
+                                            <div className="flex flex-col gap-1.5">
+                                                <span className="flex items-center gap-1">
+                                                    {row.year}
+                                                    {row.year === 6 && <span title="Best Year" className="text-yellow-400 text-xs">⚡</span>}
+                                                </span>
+                                                <div className="w-full bg-gray-700 rounded-full h-1">
+                                                    <div className="bg-blue-500 h-1 rounded-full" style={{ width: `${(row.year / 20) * 100}%` }} />
+                                                </div>
+                                            </div>
+                                        </td>
                                         <td className="px-3 py-3 whitespace-normal break-words">{formatCurrencyForTable(row.startAUM)}</td>
                                         <td className="px-3 py-3 hidden md:table-cell highlight-loan">{formatCurrencyForTable(row.loan)}</td>
 
