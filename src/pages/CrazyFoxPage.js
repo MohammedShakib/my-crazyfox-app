@@ -72,6 +72,8 @@ export default function CrazyFoxPage() {
     const [editRowId, setEditRowId] = useState(null);
     // ইনপুট ফিল্ডের ভ্যালু রাখার জন্য
     const [editGrossReturn, setEditGrossReturn] = useState('0');
+    const [editLoan, setEditLoan] = useState('0');
+    const [editRepayment, setEditRepayment] = useState('0');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const inputRef = useRef(null);
@@ -157,8 +159,12 @@ export default function CrazyFoxPage() {
         }
     };
 
-    const handleSave = (changedYear, newGrossReturn) => {
-        if (Number.isNaN(newGrossReturn)) {
+    const handleSave = () => {
+        const newGrossReturn = parseFloat(editGrossReturn) / 100;
+        const newLoan = parseFloat(editLoan) * 1e6;
+        const newRepayment = parseFloat(editRepayment) * 1e6;
+
+        if (Number.isNaN(newGrossReturn) || Number.isNaN(newLoan) || Number.isNaN(newRepayment)) {
             return;
         }
 
@@ -166,7 +172,8 @@ export default function CrazyFoxPage() {
 
         setSimData(prevData => {
             // সম্পূর্ণ ডেটার একটি নতুন কপি তৈরি করুন
-            const newData = structuredClone(prevData); 
+            const newData = structuredClone(prevData);
+            const changedYear = editRowId;
             const startIndex = newData.findIndex(row => row.year === changedYear);
 
             // যে বছর পরিবর্তন হয়েছে, সেখান থেকে শেষ পর্যন্ত লুপ চালান
@@ -184,6 +191,8 @@ export default function CrazyFoxPage() {
                 // 2. Gross Return আপডেট করুন (শুধু পরিবর্তিত বছরের জন্য)
                 if (row.year === changedYear) {
                     row.grossReturn = newGrossReturn;
+                    row.loan = newLoan;
+                    row.repayment = newRepayment;
                 }
 
                 // 3. Net Profit ও End AUM রি-ক্যালকুলেট করুন
@@ -203,11 +212,15 @@ export default function CrazyFoxPage() {
         setEditRowId(null);
         setIsModalOpen(false);
         setEditGrossReturn('0');
+        setEditLoan('0');
+        setEditRepayment('0');
     };
 
     const handleEdit = (row) => {
         setEditRowId(row.year);
         setEditGrossReturn((row.grossReturn * 100).toFixed(0));
+        setEditLoan((row.loan / 1e6).toFixed(2));
+        setEditRepayment((row.repayment / 1e6).toFixed(2));
         setIsModalOpen(true);
     };
 
@@ -215,6 +228,8 @@ export default function CrazyFoxPage() {
         setEditRowId(null);
         setIsModalOpen(false);
         setEditGrossReturn('0');
+        setEditLoan('0');
+        setEditRepayment('0');
     };
 
     const handleGrossReturnCellClick = (row) => {
@@ -230,7 +245,7 @@ export default function CrazyFoxPage() {
             }
             event.preventDefault();
             if (editRowId !== null) {
-                handleSave(editRowId, parseFloat(editGrossReturn) / 100);
+                handleSave();
             }
         } else if (event.key === 'Escape') {
             event.preventDefault();
@@ -383,21 +398,61 @@ export default function CrazyFoxPage() {
                             >
                                 <FiXCircle size={20} />
                             </button>
-                            <h3 className="text-xl font-semibold text-white">Edit Gross Return</h3>
-                            <p className="mt-1 text-sm text-gray-400">Adjust the gross return for year {editRowId}.</p>
-                            <label className="mt-4 block text-sm font-medium text-gray-300" htmlFor="gross-return-input">
-                                Gross Return (%)
-                            </label>
-                            <input
-                                id="gross-return-input"
-                                ref={inputRef}
-                                type="number"
-                                value={editGrossReturn}
-                                onChange={(e) => setEditGrossReturn(e.target.value)}
-                                className="mt-2 w-full rounded-md border border-blue-500 bg-gray-800 p-3 text-white outline-none focus:ring-2 focus:ring-blue-400"
-                            />
-                            <p className="mt-2 text-xs text-gray-500">Press Enter to save or Esc to cancel.</p>
-                            <div className="mt-6 flex justify-end space-x-3">
+                            <h3 className="text-xl font-semibold text-white">Edit Year {editRowId}</h3>
+                            <p className="mt-1 text-sm text-gray-400">Changes will cascade through all subsequent years.</p>
+
+                            <div className="mt-5 space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-1.5" htmlFor="loan-input">
+                                        Outstanding Loan <span className="text-gray-500">(Millions USD)</span>
+                                    </label>
+                                    <input
+                                        id="loan-input"
+                                        ref={inputRef}
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={editLoan}
+                                        onChange={(e) => setEditLoan(e.target.value)}
+                                        className="w-full rounded-md border border-blue-500/50 bg-gray-800 p-3 text-white outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+                                    />
+                                    <p className="mt-1 text-xs text-gray-600">e.g. 1000 = $1.00 B</p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-1.5" htmlFor="gross-return-input">
+                                        Gross Return <span className="text-gray-500">(%)</span>
+                                    </label>
+                                    <input
+                                        id="gross-return-input"
+                                        type="number"
+                                        step="1"
+                                        value={editGrossReturn}
+                                        onChange={(e) => setEditGrossReturn(e.target.value)}
+                                        className="w-full rounded-md border border-blue-500/50 bg-gray-800 p-3 text-white outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+                                    />
+                                    <p className="mt-1 text-xs text-gray-600">e.g. 48 = 48%</p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-1.5" htmlFor="repayment-input">
+                                        Principal Repayment <span className="text-gray-500">(Millions USD)</span>
+                                    </label>
+                                    <input
+                                        id="repayment-input"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={editRepayment}
+                                        onChange={(e) => setEditRepayment(e.target.value)}
+                                        className="w-full rounded-md border border-blue-500/50 bg-gray-800 p-3 text-white outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+                                    />
+                                    <p className="mt-1 text-xs text-gray-600">e.g. 250 = $250 M</p>
+                                </div>
+                            </div>
+
+                            <p className="mt-3 text-xs text-gray-600">Press Enter to save · Esc to cancel</p>
+                            <div className="mt-5 flex justify-end space-x-3">
                                 <button
                                     type="button"
                                     onClick={handleCancel}
@@ -407,11 +462,11 @@ export default function CrazyFoxPage() {
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => handleSave(editRowId, parseFloat(editGrossReturn) / 100)}
+                                    onClick={handleSave}
                                     className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
                                 >
                                     <FiSave size={16} className="mr-2" />
-                                    Save
+                                    Save & Recalculate
                                 </button>
                             </div>
                         </div>
