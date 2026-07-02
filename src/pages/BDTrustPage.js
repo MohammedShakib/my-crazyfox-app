@@ -196,12 +196,16 @@ export default function BDTrustPage({ onSwitch }) {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // Computed
-  const totalBDT = portfolio.reduce((s, r) => s + r.amount_bdt, 0);
-  const monthlyGross = portfolio.reduce((s, r) => s + (r.amount_bdt * r.rate / 12), 0);
-  const monthlyTax   = portfolio.reduce((s, r) => s + (r.amount_bdt * r.rate * r.tax_rate / 12), 0);
-  const monthlyNet   = monthlyGross - monthlyTax;
-  const blendedYield = totalBDT > 0 ? (portfolio.reduce((s, r) => s + r.amount_bdt * r.rate, 0) / totalBDT) * 100 : 0;
+  // Computed — 24% flat AOP trust tax (Bangladesh tax law for Association of Persons)
+  const TRUST_TAX_RATE = 0.24;
+  const totalBDT        = portfolio.reduce((s, r) => s + r.amount_bdt, 0);
+  const monthlyGross    = portfolio.reduce((s, r) => s + (r.amount_bdt * r.rate / 12), 0);
+  const monthlySourceTax = portfolio.reduce((s, r) => s + (r.amount_bdt * r.rate * r.tax_rate / 12), 0);
+  const monthlyTrustTax  = monthlyGross * TRUST_TAX_RATE;
+  const additionalTax    = Math.max(0, monthlyTrustTax - monthlySourceTax);
+  const monthlyTax       = monthlyTrustTax; // total = 24% of gross
+  const monthlyNet       = monthlyGross - monthlyTax;
+  const blendedYield     = totalBDT > 0 ? (portfolio.reduce((s, r) => s + r.amount_bdt * r.rate, 0) / totalBDT) * 100 : 0;
 
   const activeBens     = beneficiaries.filter((b) => b.active !== false);
   const familyPayout   = activeBens.filter((b) => b.type === 'family').reduce((s, b) => s + getEffectivePayout(b) * 1e5, 0);
@@ -373,7 +377,7 @@ export default function BDTrustPage({ onSwitch }) {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
               <StatCard label="Annual Gross Income" value={formatCr(monthlyGross * 12)} subValue={`${blendedYield.toFixed(2)}% avg rate`} />
-              <StatCard label="Annual Tax Deducted"  value={formatCr(monthlyTax * 12)}   subValue="avg across assets"     color="text-red-400" />
+              <StatCard label="Annual Tax (AOP 24%)"   value={formatCr(monthlyTax * 12)}   subValue="flat trust rate"       color="text-red-400" />
               <StatCard label="Annual Net Income"    value={formatCr(monthlyNet * 12)}   subValue="after tax"             color="text-green-400" />
               <StatCard label="Annual Reinvestment"  value={formatCr(reinvestment * 12)} subValue="net minus payouts"     color={reinvestment >= 0 ? 'text-blue-400' : 'text-red-400'} />
             </div>
@@ -438,9 +442,10 @@ export default function BDTrustPage({ onSwitch }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="card p-6 border border-gray-700/50">
             <h2 className="text-lg font-semibold text-white mb-4">Monthly Cash Flow</h2>
-            <FlowRow label="Gross Income"    amount_bdt={monthlyGross}    colorClass="text-white" />
-            <FlowRow label="Tax Deduction"   amount_bdt={monthlyTax}      colorClass="text-red-400" subLabel="(withheld)" />
-            <FlowRow label="Net Income"      amount_bdt={monthlyNet}      colorClass="text-green-400" />
+            <FlowRow label="Gross Income"          amount_bdt={monthlyGross}      colorClass="text-white" />
+            <FlowRow label="Source Tax Withheld"  amount_bdt={monthlySourceTax}  colorClass="text-red-400"    subLabel="(AIT / withholding)" indent />
+            <FlowRow label="Additional Trust Tax" amount_bdt={additionalTax}     colorClass="text-red-300"    subLabel="(AOP 24% filing)"    indent />
+            <FlowRow label="Net Income"            amount_bdt={monthlyNet}        colorClass="text-green-400" />
             <div className="pt-0.5">
               <FlowRow label="Family Payouts"   amount_bdt={familyPayout}   colorClass="text-blue-400"   indent />
               <FlowRow label="NGO Disbursement" amount_bdt={ngoPayout}      colorClass="text-green-400"  indent />

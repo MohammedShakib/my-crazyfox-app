@@ -101,10 +101,10 @@ const addRahmanTrustEntry = async (req, res) => {
 
 // ── Bangladesh Trust seed data ────────────────────────────────────────────
 const BD_PORTFOLIO_SEED = [
-  { id: 1, asset_class: 'Government Treasury Bond', institution: 'Bangladesh Bank / Primary Dealers', amount_bdt: 1750000000, rate: 0.125, tax_rate: 0.05, category: 'bond' },
-  { id: 2, asset_class: 'Cityjem FDR', institution: 'City Bank', amount_bdt: 525000000, rate: 0.085, tax_rate: 0.10, category: 'fdr' },
-  { id: 3, asset_class: 'Commercial Real Estate', institution: 'Rahman Holdings Limited', amount_bdt: 875000000, rate: 0.06, tax_rate: 0.15, category: 'real_estate' },
-  { id: 4, asset_class: 'Capital Market / Corp Bond', institution: 'BSEC / DSE', amount_bdt: 350000000, rate: 0.10, tax_rate: 0.05, category: 'capital_market' },
+  { id: 1, asset_class: 'Government Treasury Bond', institution: 'Bangladesh Bank / Primary Dealers', amount_bdt: 1750000000, rate: 0.125,  tax_rate: 0.05, category: 'bond' },
+  { id: 2, asset_class: 'Cityjem FDR',              institution: 'City Bank',                        amount_bdt:  525000000, rate: 0.0975, tax_rate: 0.15, category: 'fdr' },
+  { id: 3, asset_class: 'Commercial Real Estate',   institution: 'Rahman Holdings Limited',          amount_bdt:  875000000, rate: 0.06,   tax_rate: 0.00, category: 'real_estate' },
+  { id: 4, asset_class: 'Capital Market / Corp Bond', institution: 'BSEC / DSE',                    amount_bdt:  350000000, rate: 0.122,  tax_rate: 0.20, category: 'capital_market' },
 ];
 const BD_BENEFICIARIES_SEED = [
   { id: 1, name: 'Rahman Family Monthly', type: 'family', monthly_payout_lakh: 5.0, active: true },
