@@ -5,153 +5,188 @@
     <link rel="icon" type="image/png" href="%PUBLIC_URL%/newlogo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="Web site created using create-react-app"
-    />
+    <meta name="description" content="Web site created using create-react-app" />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/newlogo.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-   
-    <title>CrazyFox App</title>
+
+    <title>CrazyFox</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
+
     <style>
-        /* --- নতুন লাইভ ব্যাকগ্রাউন্ড অ্যানিমেশন --- */
-        @keyframes moveBg {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-
-        .animated-gradient {
-          /* একটি বড়, জটিল গ্রেডিয়েন্ট যা নড়াচড়া করবে */
-          background-image: linear-gradient(
-            -45deg, 
-            #030712, 
-            #111827, 
-            #0a0a23, 
-            #1f2937
-          );
-          background-size: 400% 400%; /* গ্রেডিয়েন্টকে অনেক বড় করা হলো */
-          animation: moveBg 15s ease-in-out infinite; /* অ্যানিমেশনটি যোগ করা হলো */
-        }
-        /* --- অ্যানিমেশন শেষ --- */
-
         body {
             font-family: 'Inter', sans-serif;
-            /* background-color: #030712; (মুছে ফেলা হয়েছে) */
             color: #f9fafb;
         }
-        .card {
-            background-color: #111827;
-            border-radius: 0.75rem;
-            border: 1px solid #1f2937;
-        }
-        .table-header-bg {
-             background-color: #111827;
-        }
-        .table-row-border {
-            border-color: #1f2937;
-        }
-        .profit {
-            color: #4ade80;
-        }
-        .loss {
-            color: #f87171;
-        }
-        .highlight-loan {
-            color: #60a5fa;
-        }
-         .repayment {
-            color: #facc15;
-        }
+
+        /* === Table / Financial page styles === */
+        .card { background-color: #111827; border-radius: 0.75rem; border: 1px solid #1f2937; }
+        .table-header-bg { background-color: #111827; }
+        .table-row-border { border-color: #1f2937; }
+        .profit { color: #4ade80; }
+        .loss { color: #f87171; }
+        .highlight-loan { color: #60a5fa; }
+        .repayment { color: #facc15; }
         .sticky-col {
-            position: -webkit-sticky; /* For Safari */
+            position: -webkit-sticky;
             position: sticky;
             left: 0;
             z-index: 10;
-            background-color: #111827; /* Must match the row background */
+            background-color: #111827;
         }
-        thead .sticky-col {
-            border-right: 1px solid #1f2937;
+        thead .sticky-col { border-right: 1px solid #1f2937; }
+        tbody tr .sticky-col { border-right: 1px solid #1f2937; }
+        .supernova { background-color: rgba(250, 204, 21, 0.1); font-weight: 700; }
+        .supernova .profit { text-shadow: 0 0 8px rgba(74, 222, 128, 0.5); }
+        .supernova .text-yellow-300 { text-shadow: 0 0 8px rgba(250, 204, 21, 0.5); }
+
+        /* === Floating Orbs Background === */
+        .orb {
+          position: fixed;
+          border-radius: 50%;
+          filter: blur(80px);
+          opacity: 0.35;
+          pointer-events: none;
+          z-index: 0;
+          animation: floatOrb 12s ease-in-out infinite;
         }
-        tbody tr .sticky-col {
-             border-right: 1px solid #1f2937;
+        .orb-1 {
+          width: min(520px, 85vw);
+          height: min(520px, 85vw);
+          background: radial-gradient(circle, #3b82f6, transparent 70%);
+          top: -10%; left: -15%;
+          animation-delay: 0s;
         }
-        .supernova {
-            background-color: rgba(250, 204, 21, 0.1);
-            font-weight: 700;
+        .orb-2 {
+          width: min(420px, 75vw);
+          height: min(420px, 75vw);
+          background: radial-gradient(circle, #8b5cf6, transparent 70%);
+          bottom: -10%; right: -10%;
+          animation-delay: -4s;
         }
-        .supernova .profit {
-            text-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
+        .orb-3 {
+          width: min(320px, 65vw);
+          height: min(320px, 65vw);
+          background: radial-gradient(circle, #06b6d4, transparent 70%);
+          top: 50%; left: 55%;
+          animation-delay: -8s;
         }
-        .supernova .text-yellow-300 {
-             text-shadow: 0 0 8px rgba(250, 204, 21, 0.5);
+        @keyframes floatOrb {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          33%       { transform: translate(30px, -20px) scale(1.05); }
+          66%       { transform: translate(-20px, 15px) scale(0.97); }
         }
-        /* --- নতুন Galaxy Glow Button CSS --- */
+
+        /* === Dashboard Card === */
+        .dashboard-card {
+          background: rgba(255,255,255,0.04);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
+          border: 1px solid rgba(255,255,255,0.08);
+          box-shadow: 0 25px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
+        }
+
+        /* === Avatar Badge === */
+        .avatar-badge {
+          width: 2.25rem; height: 2.25rem; min-width: 2.25rem;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+          display: flex; align-items: center; justify-content: center;
+          font-weight: 700; font-size: 0.875rem; color: white;
+          box-shadow: 0 0 12px rgba(59,130,246,0.5);
+        }
+
+        /* === Glow Card === */
         @keyframes rotateBg {
           from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+          to   { transform: rotate(360deg); }
         }
-
-        /* এই 'wrapper' div-টি অ্যানিমেটেড বর্ডার হিসেবে কাজ করবে */
-        .glow-button-wrapper {
+        .glow-card-wrapper {
           position: relative;
-          z-index: 10;
-          border-radius: 9999px; /* বাটনটিকে 'pill' বা ক্যাপসুল শেপ দেয় */
-          overflow: hidden; /* ভেতরের অ্যানিমেশনকে মাস্ক করে */
-          padding: 2px; /* এটি বর্ডারের পুরুত্ব (thickness) ঠিক করে */
+          border-radius: 0.875rem;
+          overflow: hidden;
+          padding: 1.5px;
         }
-
-        /* এই pseudo-element-টি হলো আসল অ্যানিমেটেড গ্রেডিয়েন্ট */
-        .glow-button-wrapper::before {
+        .glow-card-wrapper::before {
           content: '';
           position: absolute;
-          top: -50%;
-          left: -50%;
-          width: 200%;
-          height: 200%;
-          z-index: -1; /* বর্ডারের পেছনে থাকে */
-          
-          /* এই গ্রেডিয়েন্টটি ঘোরে */
-          background-image: conic-gradient(
-            transparent, 
-            transparent, 
-            transparent, 
-            #3b82f6, /* উজ্জ্বল নীল */
-            #a78bfa, /* পার্পল */
-            #3b82f6, /* উজ্জ্বল নীল */
-            transparent,
-            transparent
-          );
-          
-          animation: rotateBg 4s linear infinite; /* অ্যানিমেশনটি ৪ সেকেন্ড ধরে চলে */
+          top: -50%; left: -50%;
+          width: 200%; height: 200%;
+          z-index: 0;
+          animation: rotateBg 5s linear infinite;
         }
-
-        /* এটি হলো ভেতরের কালো বাটন */
-        .glow-button-inner {
-          position: relative;
-          z-index: 2; /* অ্যানিমেশনের উপরে থাকে */
-          display: block;
-          width: 100%;
-          padding: 1.25rem; /* p-5 */
-          text-align: left;
-          font-size: 1.125rem; /* text-lg */
-          background-color: #111827; /* বাটনের ভেতরের রঙ */
-          border-radius: 9999px; /* ক্যাপসুল শেপ */
+        .glow-blue::before {
+          background-image: conic-gradient(transparent, transparent, transparent, #3b82f6, #a78bfa, #3b82f6, transparent, transparent);
+        }
+        .glow-green::before {
+          background-image: conic-gradient(transparent, transparent, transparent, #22c55e, #06b6d4, #22c55e, transparent, transparent);
+        }
+        .glow-card-inner {
+          position: relative; z-index: 1;
+          padding: 1.25rem;
+          background-color: #0d1117;
+          border-radius: 0.75rem;
           transition: background-color 0.2s ease;
         }
-        
-        /* হোভার করলে ভেতরের বাটনটি সামান্য উজ্জ্বল হবে */
-        .glow-button-wrapper:hover .glow-button-inner {
-           background-color: #1f2937; 
+        .glow-card-wrapper:hover .glow-card-inner {
+          background-color: #161d27;
         }
-        /* --- CSS শেষ --- */
+
+        /* === Icon Orb === */
+        .icon-orb {
+          width: 2.5rem; height: 2.5rem; min-width: 2.5rem;
+          border-radius: 0.625rem;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .icon-orb-blue  { background: rgba(59,130,246,0.15); }
+        .icon-orb-green { background: rgba(34,197,94,0.15); }
+
+        /* === Chips === */
+        .chip {
+          display: inline-flex; align-items: center;
+          font-size: 0.7rem; font-weight: 500;
+          padding: 0.2rem 0.55rem;
+          border-radius: 9999px;
+        }
+        .chip-blue   { background: rgba(59,130,246,0.12); color: #93c5fd; border: 1px solid rgba(59,130,246,0.2); }
+        .chip-green  { background: rgba(34,197,94,0.12);  color: #86efac; border: 1px solid rgba(34,197,94,0.2); }
+        .chip-yellow { background: rgba(234,179,8,0.12);  color: #fde047; border: 1px solid rgba(234,179,8,0.2); }
+        .chip-gray   { background: rgba(107,114,128,0.15);color: #9ca3af; border: 1px solid rgba(107,114,128,0.2); }
+
+        /* === Legacy classes (used by other pages) === */
+        .animated-gradient {
+          background-image: linear-gradient(-45deg, #030712, #111827, #0a0a23, #1f2937);
+          background-size: 400% 400%;
+          animation: moveBg 15s ease-in-out infinite;
+        }
+        @keyframes moveBg {
+          0%   { background-position: 0% 50%; }
+          50%  { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        .glow-button-wrapper {
+          position: relative; z-index: 10;
+          border-radius: 9999px; overflow: hidden; padding: 2px;
+        }
+        .glow-button-wrapper::before {
+          content: '';
+          position: absolute; top: -50%; left: -50%;
+          width: 200%; height: 200%; z-index: -1;
+          background-image: conic-gradient(transparent, transparent, transparent, #3b82f6, #a78bfa, #3b82f6, transparent, transparent);
+          animation: rotateBg 4s linear infinite;
+        }
+        .glow-button-inner {
+          position: relative; z-index: 2;
+          display: block; width: 100%; padding: 1.25rem;
+          text-align: left; font-size: 1.125rem;
+          background-color: #111827; border-radius: 9999px;
+          transition: background-color 0.2s ease;
+        }
+        .glow-button-wrapper:hover .glow-button-inner { background-color: #1f2937; }
     </style>
   </head>
   <body>
