@@ -71,6 +71,7 @@ export default function CrazyFoxPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [editRowId, setEditRowId] = useState(null);
     // ইনপুট ফিল্ডের ভ্যালু রাখার জন্য
+    const [editStartAUM, setEditStartAUM] = useState('0');
     const [editGrossReturn, setEditGrossReturn] = useState('0');
     const [editLoan, setEditLoan] = useState('0');
     const [editRepayment, setEditRepayment] = useState('0');
@@ -160,11 +161,17 @@ export default function CrazyFoxPage() {
     };
 
     const handleSave = () => {
+        const newStartAUM = parseFloat(editStartAUM) * 1e6;
         const newGrossReturn = parseFloat(editGrossReturn) / 100;
         const newLoan = parseFloat(editLoan) * 1e6;
         const newRepayment = parseFloat(editRepayment) * 1e6;
 
-        if (Number.isNaN(newGrossReturn) || Number.isNaN(newLoan) || Number.isNaN(newRepayment)) {
+        if (
+            Number.isNaN(newStartAUM) ||
+            Number.isNaN(newGrossReturn) ||
+            Number.isNaN(newLoan) ||
+            Number.isNaN(newRepayment)
+        ) {
             return;
         }
 
@@ -180,13 +187,17 @@ export default function CrazyFoxPage() {
             for (let i = startIndex; i < newData.length; i++) {
                 const row = newData[i];
                 
-                // 1. Start AUM আপডেট করুন (আগের বছরের End AUM)
-                // বিশেষ দ্রষ্টব্য: বছর ৩-এর 200M ইনজেকশন লজিক এখানে যুক্ত করা হয়েছে
-                let currentStartAUM = (i === 0) ? 30e6 : newData[i - 1].endAUM;
-                if (row.year === 3) {
-                    currentStartAUM += 200e6; 
+                // The changed year uses the edited starting equity.
+                // Later years continue cascading from the prior year's ending equity.
+                if (i === startIndex) {
+                    row.startAUM = newStartAUM;
+                } else {
+                    let currentStartAUM = newData[i - 1].endAUM;
+                    if (row.year === 3) {
+                        currentStartAUM += 200e6;
+                    }
+                    row.startAUM = currentStartAUM;
                 }
-                row.startAUM = currentStartAUM;
 
                 // 2. Gross Return আপডেট করুন (শুধু পরিবর্তিত বছরের জন্য)
                 if (row.year === changedYear) {
@@ -211,6 +222,7 @@ export default function CrazyFoxPage() {
 
         setEditRowId(null);
         setIsModalOpen(false);
+        setEditStartAUM('0');
         setEditGrossReturn('0');
         setEditLoan('0');
         setEditRepayment('0');
@@ -218,6 +230,7 @@ export default function CrazyFoxPage() {
 
     const handleEdit = (row) => {
         setEditRowId(row.year);
+        setEditStartAUM((row.startAUM / 1e6).toFixed(2));
         setEditGrossReturn((row.grossReturn * 100).toFixed(0));
         setEditLoan((row.loan / 1e6).toFixed(2));
         setEditRepayment((row.repayment / 1e6).toFixed(2));
@@ -227,6 +240,7 @@ export default function CrazyFoxPage() {
     const handleCancel = () => {
         setEditRowId(null);
         setIsModalOpen(false);
+        setEditStartAUM('0');
         setEditGrossReturn('0');
         setEditLoan('0');
         setEditRepayment('0');
@@ -403,12 +417,28 @@ export default function CrazyFoxPage() {
 
                             <div className="mt-5 space-y-4">
                                 <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-1.5" htmlFor="start-aum-input">
+                                        Starting Equity <span className="text-gray-500">(Millions USD)</span>
+                                    </label>
+                                    <input
+                                        id="start-aum-input"
+                                        ref={inputRef}
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={editStartAUM}
+                                        onChange={(e) => setEditStartAUM(e.target.value)}
+                                        className="w-full rounded-md border border-blue-500/50 bg-gray-800 p-3 text-white outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+                                    />
+                                    <p className="mt-1 text-xs text-gray-600">e.g. 30 = $30 M</p>
+                                </div>
+
+                                <div>
                                     <label className="block text-sm font-medium text-gray-300 mb-1.5" htmlFor="loan-input">
                                         Outstanding Loan <span className="text-gray-500">(Millions USD)</span>
                                     </label>
                                     <input
                                         id="loan-input"
-                                        ref={inputRef}
                                         type="number"
                                         min="0"
                                         step="0.01"
