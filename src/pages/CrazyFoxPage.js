@@ -77,6 +77,8 @@ export default function CrazyFoxPage() {
     const [editRepayment, setEditRepayment] = useState('0');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
+    const [saveError, setSaveError] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
     const inputRef = useRef(null);
 
     useEffect(() => {
@@ -141,26 +143,27 @@ export default function CrazyFoxPage() {
 
     // সেভ বাটনে ক্লিক করলে এই ফাংশনটি কাজ করবে
     const persistCrazyFoxData = async (rows) => {
-        try {
-            const response = await fetch(CRAZYFOX_ENDPOINTS.update, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(rows.map(mapCrazyFoxToApi))
-            });
-            if (!response.ok) {
-                const message = await response.text();
-                throw new Error(message || 'Request failed');
-            }
-            const payload = await response.json();
-            if (Array.isArray(payload)) {
-                setSimData(payload.map(mapCrazyFoxFromApi));
-            }
-        } catch (error) {
-            console.error('Unable to persist CrazyFox updates', error);
+        const response = await fetch(CRAZYFOX_ENDPOINTS.update, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(rows.map(mapCrazyFoxToApi))
+        });
+        if (!response.ok) {
+            const message = await response.text();
+            throw new Error(message || 'Request failed');
+        }
+        const payload = await response.json();
+        if (Array.isArray(payload)) {
+            setSimData(payload.map(mapCrazyFoxFromApi));
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
+        if (isSaving) {
+            return;
+        }
+
+        setSaveError('');
         const newStartAUM = parseFloat(editStartAUM) * 1e6;
         const newGrossReturn = parseFloat(editGrossReturn) / 100;
         const newLoan = parseFloat(editLoan) * 1e6;
@@ -172,16 +175,21 @@ export default function CrazyFoxPage() {
             Number.isNaN(newLoan) ||
             Number.isNaN(newRepayment)
         ) {
+            setSaveError('Please enter valid numeric values.');
             return;
         }
 
-        let updatedRows = null;
+        const previousData = structuredClone(simData);
+        const newData = structuredClone(previousData);
+        const changedYear = editRowId;
+        const startIndex = newData.findIndex(row => row.year === changedYear);
 
-        setSimData(prevData => {
+        if (startIndex === -1) {
+            setSaveError('Could not find the selected year.');
+            return;
+        }
+
             // সম্পূর্ণ ডেটার একটি নতুন কপি তৈরি করুন
-            const newData = structuredClone(prevData);
-            const changedYear = editRowId;
-            const startIndex = newData.findIndex(row => row.year === changedYear);
 
             // যে বছর পরিবর্তন হয়েছে, সেখান থেকে শেষ পর্যন্ত লুপ চালান
             for (let i = startIndex; i < newData.length; i++) {
@@ -212,20 +220,22 @@ export default function CrazyFoxPage() {
                 row.endAUM = row.startAUM + newNetProfit - row.repayment;
             }
             
-            updatedRows = newData;
-            return newData;
-        });
-
-        if (updatedRows) {
-            void persistCrazyFoxData(updatedRows);
+        setIsSaving(true);
+        try {
+            setSimData(newData);
+            await persistCrazyFoxData(newData);
+            setEditRowId(null);
+            setIsModalOpen(false);
+            setEditStartAUM('0');
+            setEditGrossReturn('0');
+            setEditLoan('0');
+            setEditRepayment('0');
+        } catch (error) {
+            setSimData(previousData);
+            setSaveError(error?.message || 'Unable to save changes. Please try again.');
+        } finally {
+            setIsSaving(false);
         }
-
-        setEditRowId(null);
-        setIsModalOpen(false);
-        setEditStartAUM('0');
-        setEditGrossReturn('0');
-        setEditLoan('0');
-        setEditRepayment('0');
     };
 
     const handleEdit = (row) => {
@@ -234,6 +244,7 @@ export default function CrazyFoxPage() {
         setEditGrossReturn((row.grossReturn * 100).toFixed(0));
         setEditLoan((row.loan / 1e6).toFixed(2));
         setEditRepayment((row.repayment / 1e6).toFixed(2));
+        setSaveError('');
         setIsModalOpen(true);
     };
 
@@ -244,6 +255,7 @@ export default function CrazyFoxPage() {
         setEditGrossReturn('0');
         setEditLoan('0');
         setEditRepayment('0');
+        setSaveError('');
     };
 
     const handleGrossReturnCellClick = (row) => {
@@ -415,6 +427,12 @@ export default function CrazyFoxPage() {
                             <h3 className="text-xl font-semibold text-white">Edit Year {editRowId}</h3>
                             <p className="mt-1 text-sm text-gray-400">Changes will cascade through all subsequent years.</p>
 
+                            {saveError && (
+                                <div className="mt-4 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                                    {saveError}
+                                </div>
+                            )}
+
                             <div className="mt-5 space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-300 mb-1.5" htmlFor="start-aum-input">
@@ -493,10 +511,11 @@ export default function CrazyFoxPage() {
                                 <button
                                     type="button"
                                     onClick={handleSave}
-                                    className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                    disabled={isSaving}
+                                    className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                     <FiSave size={16} className="mr-2" />
-                                    Save & Recalculate
+                                    {isSaving ? 'Saving...' : 'Save & Recalculate'}
                                 </button>
                             </div>
                         </div>
