@@ -62,6 +62,52 @@ function formatCurrencyForTable(num) {
     return `$${(absNum / 1e3).toFixed(0)} K`;
 }
 
+const CRAZYFOX_INJECTION_YEAR = 3;
+const CRAZYFOX_INJECTION_AMOUNT = 200e6;
+
+function computeCrazyFoxNetProfit(startAUM, loan, grossReturn) {
+    const totalInvestable = startAUM + loan;
+    const grossProfit = totalInvestable * grossReturn;
+    const mgmtFee = startAUM * 0.02;
+    const loanInterest = loan * 0.05;
+    const performanceBase = grossProfit - mgmtFee - loanInterest;
+    const performanceFee = Math.max(0, performanceBase * 0.20);
+    return grossProfit - mgmtFee - loanInterest - performanceFee;
+}
+
+function rebuildCrazyFoxRows(rows, edit = null) {
+    const nextRows = structuredClone(rows);
+    const changedYear = edit?.year ?? null;
+
+    for (let i = 0; i < nextRows.length; i++) {
+        const row = nextRows[i];
+        const isChangedRow = changedYear !== null && row.year === changedYear;
+
+        if (i === 0) {
+            if (isChangedRow && edit?.startAUM !== undefined) {
+                row.startAUM = edit.startAUM;
+            }
+        } else {
+            row.startAUM = nextRows[i - 1].endAUM;
+            if (row.year === CRAZYFOX_INJECTION_YEAR) {
+                row.startAUM += CRAZYFOX_INJECTION_AMOUNT;
+            }
+        }
+
+        if (isChangedRow && edit) {
+            if (edit.startAUM !== undefined) row.startAUM = edit.startAUM;
+            if (edit.loan !== undefined) row.loan = edit.loan;
+            if (edit.grossReturn !== undefined) row.grossReturn = edit.grossReturn;
+            if (edit.repayment !== undefined) row.repayment = edit.repayment;
+        }
+
+        row.netProfit = computeCrazyFoxNetProfit(row.startAUM, row.loan, row.grossReturn);
+        row.endAUM = row.startAUM + row.netProfit - row.repayment;
+    }
+
+    return nextRows;
+}
+
 // --- React Component ---
 export default function CrazyFoxPage() {
     
@@ -92,7 +138,7 @@ export default function CrazyFoxPage() {
                 }
                 const payload = await response.json();
                 if (isMounted && Array.isArray(payload)) {
-                    setSimData(payload.map(mapCrazyFoxFromApi));
+                    setSimData(rebuildCrazyFoxRows(payload.map(mapCrazyFoxFromApi)));
                 }
             } catch (error) {
                 console.error('Unable to fetch CrazyFox data from API', error);
@@ -154,7 +200,7 @@ export default function CrazyFoxPage() {
         }
         const payload = await response.json();
         if (Array.isArray(payload)) {
-            setSimData(payload.map(mapCrazyFoxFromApi));
+            setSimData(rebuildCrazyFoxRows(payload.map(mapCrazyFoxFromApi)));
         }
     };
 
@@ -162,6 +208,31 @@ export default function CrazyFoxPage() {
         if (isSaving) {
             return;
         }
+        const nextData = rebuildCrazyFoxRows(simData, {
+            year: changedYear,
+            startAUM: newStartAUM,
+            grossReturn: newGrossReturn,
+            loan: newLoan,
+            repayment: newRepayment,
+        });
+
+        setIsSaving(true);
+        try {
+            setSimData(nextData);
+            await persistCrazyFoxData(nextData);
+            setEditRowId(null);
+            setIsModalOpen(false);
+            setEditStartAUM('0');
+            setEditGrossReturn('0');
+            setEditLoan('0');
+            setEditRepayment('0');
+        } catch (error) {
+            setSimData(simData);
+            setSaveError(error?.message || 'Unable to save changes. Please try again.');
+        } finally {
+            setIsSaving(false);
+        }
+        return;
 
         setSaveError('');
         const newStartAUM = parseFloat(editStartAUM) * 1e6;
@@ -238,6 +309,60 @@ export default function CrazyFoxPage() {
         }
     };
 
+    const handleSaveFixed = async () => {
+        if (isSaving) {
+            return;
+        }
+
+        setSaveError('');
+
+        const newStartAUM = parseFloat(editStartAUM) * 1e6;
+        const newGrossReturn = parseFloat(editGrossReturn) / 100;
+        const newLoan = parseFloat(editLoan) * 1e6;
+        const newRepayment = parseFloat(editRepayment) * 1e6;
+
+        if (
+            Number.isNaN(newStartAUM) ||
+            Number.isNaN(newGrossReturn) ||
+            Number.isNaN(newLoan) ||
+            Number.isNaN(newRepayment)
+        ) {
+            setSaveError('Please enter valid numeric values.');
+            return;
+        }
+
+        if (editRowId === null) {
+            setSaveError('No year selected.');
+            return;
+        }
+
+        const previousData = structuredClone(simData);
+        const nextData = rebuildCrazyFoxRows(previousData, {
+            year: editRowId,
+            startAUM: newStartAUM,
+            grossReturn: newGrossReturn,
+            loan: newLoan,
+            repayment: newRepayment,
+        });
+
+        setIsSaving(true);
+        try {
+            setSimData(nextData);
+            await persistCrazyFoxData(nextData);
+            setEditRowId(null);
+            setIsModalOpen(false);
+            setEditStartAUM('0');
+            setEditGrossReturn('0');
+            setEditLoan('0');
+            setEditRepayment('0');
+        } catch (error) {
+            setSimData(previousData);
+            setSaveError(error?.message || 'Unable to save changes. Please try again.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     const handleEdit = (row) => {
         setEditRowId(row.year);
         setEditStartAUM((row.startAUM / 1e6).toFixed(2));
@@ -271,7 +396,7 @@ export default function CrazyFoxPage() {
             }
             event.preventDefault();
             if (editRowId !== null) {
-                handleSave();
+                void handleSaveFixed();
             }
         } else if (event.key === 'Escape') {
             event.preventDefault();
@@ -281,6 +406,12 @@ export default function CrazyFoxPage() {
 
     // --- ধাপ ৩: সামারি কার্ডকে ডাইনামিক করা ---
     // simData (state) থেকে মোট লাভ ও শেষ ইক্যুইটি গণনা করুন
+    const startingCapital = simData.length > 0 ? simData[0].startAUM : 0;
+    const totalEquityInjected = simData.reduce((acc, row, index) => {
+        if (index === 0) return acc;
+        const previousEndAUM = simData[index - 1].endAUM;
+        return acc + Math.max(0, row.startAUM - previousEndAUM);
+    }, 0);
     const totalNetProfit = simData.reduce((acc, row) => acc + row.netProfit, 0);
     const endingEquity = simData.length > 0 ? simData[simData.length - 1].endAUM : 0;
 
@@ -310,13 +441,13 @@ export default function CrazyFoxPage() {
                         <div className="card p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
                             <div className="text-sm text-gray-400 mb-1">Starting Capital (Y1)</div>
                             <div className="text-2xl lg:text-3xl font-bold text-white">
-                                <AnimatedStat value={30e6} format={formatCurrencyForTable} />
+                                <AnimatedStat value={startingCapital} format={formatCurrencyForTable} />
                             </div>
                         </div>
                         <div className="card p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
                             <div className="text-sm text-gray-400 mb-1">Total Equity Injected</div>
                             <div className="text-2xl lg:text-3xl font-bold text-white">
-                                <AnimatedStat value={200e6} format={formatCurrencyForTable} />
+                                <AnimatedStat value={totalEquityInjected} format={formatCurrencyForTable} />
                             </div>
                         </div>
                         <div className="card p-4 bg-gray-800/50 border border-green-500/30 rounded-lg">
@@ -510,7 +641,7 @@ export default function CrazyFoxPage() {
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={handleSave}
+                                    onClick={() => void handleSaveFixed()}
                                     disabled={isSaving}
                                     className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
