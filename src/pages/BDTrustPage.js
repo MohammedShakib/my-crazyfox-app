@@ -36,7 +36,9 @@ const BENEFICIARY_CONFIG = {
 const CHART_COLORS = {
   bond: '#3b82f6', fdr: '#22c55e', real_estate: '#f59e0b', capital_market: '#ef4444',
 };
-const SIMULATION_YEARS = 10;
+const SIMULATION_YEAR_OPTIONS = [5, 10, 20];
+const DEFAULT_SIMULATION_YEARS = 10;
+const DEFAULT_PAYOUT_GROWTH_RATE = '6';
 
 // Returns effective monthly payout in lakh (sum of active members if any, else direct value)
 const getEffectivePayout = (ben) => {
@@ -44,11 +46,12 @@ const getEffectivePayout = (ben) => {
   return ben.members.filter((m) => m.active !== false).reduce((s, m) => s + m.monthly_payout_lakh, 0);
 };
 
-const buildYearlySimulation = ({ startingBalance, annualGrossRate, trustTaxRate, annualPayout, years }) => {
+const buildYearlySimulation = ({ startingBalance, annualGrossRate, trustTaxRate, baseAnnualPayout, payoutGrowthRate, years }) => {
   const simulation = [];
   let openingBalance = startingBalance;
 
   for (let year = 1; year <= years; year += 1) {
+    const annualPayout = baseAnnualPayout * ((1 + payoutGrowthRate) ** (year - 1));
     const annualGrossIncome = openingBalance * annualGrossRate;
     const annualTax = annualGrossIncome * trustTaxRate;
     const annualNetIncome = annualGrossIncome - annualTax;
@@ -105,6 +108,100 @@ function DonutChart({ slices }) {
       </text>
       <text x={cx} y={cy + 12} textAnchor="middle" fill="#9ca3af" fontSize="9">Cr BDT</text>
     </svg>
+  );
+}
+
+function SimulationTrendChart({ rows }) {
+  if (!rows.length) return null;
+
+  const width = 820;
+  const height = 280;
+  const paddingX = 36;
+  const paddingTop = 20;
+  const paddingBottom = 36;
+  const chartHeight = height - paddingTop - paddingBottom;
+  const chartWidth = width - paddingX * 2;
+
+  const points = [
+    { label: 'Now', value: rows[0].openingBalance },
+    ...rows.map((row) => ({ label: `Y${row.year}`, value: row.closingBalance })),
+  ];
+
+  const values = points.map((point) => point.value);
+  const maxValue = Math.max(...values, 1);
+  const minValue = Math.min(...values, 0);
+  const range = Math.max(maxValue - minValue, maxValue * 0.15, 1);
+  const stepX = points.length > 1 ? chartWidth / (points.length - 1) : 0;
+
+  const getX = (index) => paddingX + stepX * index;
+  const getY = (value) => paddingTop + ((maxValue - value) / range) * chartHeight;
+
+  const linePoints = points.map((point, index) => `${getX(index)},${getY(point.value)}`).join(' ');
+  const areaPath = [
+    `M ${getX(0)} ${height - paddingBottom}`,
+    ...points.map((point, index) => `L ${getX(index)} ${getY(point.value)}`),
+    `L ${getX(points.length - 1)} ${height - paddingBottom}`,
+    'Z',
+  ].join(' ');
+
+  const labelStep = points.length > 12 ? 5 : points.length > 7 ? 2 : 1;
+  const tickIndexes = points
+    .map((_, index) => index)
+    .filter((index) => index === 0 || index === points.length - 1 || index % labelStep === 0);
+  const yTicks = Array.from({ length: 4 }, (_, index) => maxValue - (range / 3) * index);
+
+  return (
+    <div className="rounded-xl border border-gray-700 bg-gray-900/40 p-4 md:p-5">
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div>
+          <div className="text-sm font-medium text-white">Portfolio Trajectory</div>
+          <div className="text-xs text-gray-500">Closing portfolio value across the selected simulation horizon.</div>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-gray-400">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-400" />
+          Closing portfolio
+        </div>
+      </div>
+      <div className="h-72">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full" role="img" aria-label="Portfolio trajectory chart">
+          <defs>
+            <linearGradient id="simulationAreaFill" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+
+          {yTicks.map((tick) => (
+            <g key={tick}>
+              <line
+                x1={paddingX}
+                y1={getY(tick)}
+                x2={width - paddingX}
+                y2={getY(tick)}
+                stroke="#1f2937"
+                strokeDasharray="4 6"
+              />
+              <text x="4" y={getY(tick) + 4} fill="#6b7280" fontSize="11">
+                {numCr(tick)} Cr
+              </text>
+            </g>
+          ))}
+
+          <path d={areaPath} fill="url(#simulationAreaFill)" />
+          <polyline fill="none" stroke="#60a5fa" strokeWidth="3" points={linePoints} />
+
+          {points.map((point, index) => (
+            <circle key={point.label} cx={getX(index)} cy={getY(point.value)} r="4" fill="#93c5fd" stroke="#0f172a" strokeWidth="2" />
+          ))}
+
+          {tickIndexes.map((index) => (
+            <text key={points[index].label} x={getX(index)} y={height - 10} textAnchor="middle" fill="#9ca3af" fontSize="11">
+              {points[index].label}
+            </text>
+          ))}
+        </svg>
+      </div>
+    </div>
   );
 }
 
@@ -180,6 +277,9 @@ export default function BDTrustPage({ onSwitch }) {
   const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [expandedBenId, setExpandedBenId] = useState(null);
+  const [simulationYears, setSimulationYears] = useState(DEFAULT_SIMULATION_YEARS);
+  const [payoutMode, setPayoutMode] = useState('fixed');
+  const [payoutGrowthInput, setPayoutGrowthInput] = useState(DEFAULT_PAYOUT_GROWTH_RATE);
 
   // Portfolio modal
   const [pModal, setPModal] = useState(null);
@@ -248,15 +348,22 @@ export default function BDTrustPage({ onSwitch }) {
   const payoutRatio    = monthlyNet > 0 ? (totalPayout / monthlyNet) * 100 : 0;
   const annualPayout   = totalPayout * 12;
   const annualNetIncome = monthlyNet * 12;
+  const parsedPayoutGrowth = Number.parseFloat(payoutGrowthInput);
+  const payoutGrowthRate = payoutMode === 'growing' && Number.isFinite(parsedPayoutGrowth) && parsedPayoutGrowth > 0
+    ? parsedPayoutGrowth / 100
+    : 0;
   const yearlySimulation = buildYearlySimulation({
     startingBalance: totalBDT,
     annualGrossRate: grossYieldRate,
     trustTaxRate: TRUST_TAX_RATE,
-    annualPayout,
-    years: SIMULATION_YEARS,
+    baseAnnualPayout: annualPayout,
+    payoutGrowthRate,
+    years: simulationYears,
   });
   const finalSimulationYear = yearlySimulation[yearlySimulation.length - 1];
   const cumulativeReinvestment = yearlySimulation.reduce((sum, row) => sum + row.annualReinvestment, 0);
+  const finalPortfolioGain = (finalSimulationYear?.closingBalance || 0) - totalBDT;
+  const finalPortfolioGainPct = totalBDT > 0 ? (finalPortfolioGain / totalBDT) * 100 : 0;
 
   const postApi = async (url, body) => {
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -482,15 +589,74 @@ export default function BDTrustPage({ onSwitch }) {
         </div>
 
         {/* ── Monthly Cash Flow ── */}
-        <div className="card shadow-lg border border-gray-700/50 overflow-hidden md:overflow-x-auto mb-8">
-          <div className="px-6 py-5 border-b border-gray-700 flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <h2 className="text-lg font-semibold text-white">10-Year Growth Simulation</h2>
-              <p className="text-sm text-gray-400 mt-1">
-                Assumes current asset mix, {blendedYield.toFixed(2)}% blended yield, 24% trust tax, and fixed annual payouts with all surplus reinvested.
-              </p>
+        <div className="card shadow-lg border border-gray-700/50 overflow-hidden mb-8">
+          <div className="px-6 py-5 border-b border-gray-700">
+            <div className="flex items-start justify-between gap-4 flex-wrap mb-5">
+              <div>
+                <h2 className="text-lg font-semibold text-white">{simulationYears}-Year Growth Simulation</h2>
+                <p className="text-sm text-gray-400 mt-1">
+                  Uses the current asset mix, {blendedYield.toFixed(2)}% blended yield, 24% trust tax, and annual reinvestment after payouts.
+                </p>
+              </div>
+              <div className="text-xs text-gray-500">
+                Payout mode: {payoutMode === 'growing' ? `Growing at ${payoutGrowthRate * 100}% yearly` : 'Fixed yearly payout'}
+              </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto lg:min-w-[32rem]">
+
+            <div className="grid grid-cols-1 xl:grid-cols-[auto_auto] gap-4 items-start">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">Time Horizon</div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {SIMULATION_YEAR_OPTIONS.map((years) => (
+                    <button
+                      key={years}
+                      type="button"
+                      onClick={() => setSimulationYears(years)}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                        simulationYears === years ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {years}Y
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">Payout Strategy</div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {[
+                    { key: 'fixed', label: 'Fixed' },
+                    { key: 'growing', label: 'Growing' },
+                  ].map((option) => (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => setPayoutMode(option.key)}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                        payoutMode === option.key ? 'bg-green-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={payoutGrowthInput}
+                      onChange={(e) => setPayoutGrowthInput(e.target.value)}
+                      disabled={payoutMode !== 'growing'}
+                      className="w-20 rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-40"
+                    />
+                    <span className="text-sm text-gray-400">% yearly</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mt-5">
               <div className="rounded-lg border border-gray-700 bg-gray-800/40 p-4">
                 <div className="text-xs text-gray-400 mb-1">Current Annual Net</div>
                 <div className="text-xl font-bold text-green-400">{formatCr(annualNetIncome)}</div>
@@ -500,37 +666,51 @@ export default function BDTrustPage({ onSwitch }) {
                 <div className={`text-xl font-bold ${cumulativeReinvestment >= 0 ? 'text-blue-400' : 'text-red-400'}`}>{formatCr(cumulativeReinvestment)}</div>
               </div>
               <div className="rounded-lg border border-gray-700 bg-gray-800/40 p-4">
-                <div className="text-xs text-gray-400 mb-1">Year 10 Portfolio</div>
+                <div className="text-xs text-gray-400 mb-1">Final Annual Payout</div>
+                <div className="text-xl font-bold text-yellow-400">{formatCr(finalSimulationYear?.annualPayout || annualPayout)}</div>
+              </div>
+              <div className="rounded-lg border border-gray-700 bg-gray-800/40 p-4">
+                <div className="text-xs text-gray-400 mb-1">End Portfolio</div>
                 <div className="text-xl font-bold text-white">{formatCr(finalSimulationYear?.closingBalance || 0)}</div>
+                <div className={`text-xs mt-1 ${finalPortfolioGain >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
+                  {finalPortfolioGain >= 0 ? '+' : ''}{formatCr(finalPortfolioGain)} ({finalPortfolioGainPct.toFixed(1)}%)
+                </div>
               </div>
             </div>
           </div>
-          <table className="w-full min-w-[860px] text-sm text-left text-gray-300">
-            <thead className="text-xs text-gray-400 uppercase table-header-bg">
-              <tr>
-                <th className="px-4 py-3">Year</th>
-                <th className="px-4 py-3">Opening</th>
-                <th className="px-4 py-3">Net Income</th>
-                <th className="px-4 py-3">Payouts</th>
-                <th className="px-4 py-3">Reinvestment</th>
-                <th className="px-4 py-3">Closing</th>
-              </tr>
-            </thead>
-            <tbody>
-              {yearlySimulation.map((row) => (
-                <tr key={row.year} className="border-b table-row-border hover:bg-gray-800/40 transition-colors">
-                  <td className="px-4 py-3 font-medium text-white">Year {row.year}</td>
-                  <td className="px-4 py-3 text-gray-200">{formatCr(row.openingBalance)}</td>
-                  <td className="px-4 py-3 text-green-400">{formatCr(row.annualNetIncome)}</td>
-                  <td className="px-4 py-3 text-yellow-400">{formatCr(row.annualPayout)}</td>
-                  <td className={`px-4 py-3 font-semibold ${row.annualReinvestment >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
-                    {formatCr(row.annualReinvestment)}
-                  </td>
-                  <td className="px-4 py-3 text-white font-semibold">{formatCr(row.closingBalance)}</td>
+
+          <div className="p-6 border-b border-gray-700">
+            <SimulationTrendChart rows={yearlySimulation} />
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[860px] text-sm text-left text-gray-300">
+              <thead className="text-xs text-gray-400 uppercase table-header-bg">
+                <tr>
+                  <th className="px-4 py-3">Year</th>
+                  <th className="px-4 py-3">Opening</th>
+                  <th className="px-4 py-3">Net Income</th>
+                  <th className="px-4 py-3">Payouts</th>
+                  <th className="px-4 py-3">Reinvestment</th>
+                  <th className="px-4 py-3">Closing</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {yearlySimulation.map((row) => (
+                  <tr key={row.year} className="border-b table-row-border hover:bg-gray-800/40 transition-colors">
+                    <td className="px-4 py-3 font-medium text-white">Year {row.year}</td>
+                    <td className="px-4 py-3 text-gray-200">{formatCr(row.openingBalance)}</td>
+                    <td className="px-4 py-3 text-green-400">{formatCr(row.annualNetIncome)}</td>
+                    <td className="px-4 py-3 text-yellow-400">{formatCr(row.annualPayout)}</td>
+                    <td className={`px-4 py-3 font-semibold ${row.annualReinvestment >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
+                      {formatCr(row.annualReinvestment)}
+                    </td>
+                    <td className="px-4 py-3 text-white font-semibold">{formatCr(row.closingBalance)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
