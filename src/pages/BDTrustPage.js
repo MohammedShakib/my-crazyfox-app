@@ -40,6 +40,7 @@ const CHART_COLORS = {
 const SIMULATION_YEAR_OPTIONS = [5, 10, 20];
 const DEFAULT_SIMULATION_YEARS = 10;
 const DEFAULT_PAYOUT_GROWTH_RATE = '6';
+const BD_TRUST_INJECTION_PLANS_STORAGE_KEY = 'bd-trust-yearly-injection-plans';
 const DEFAULT_INJECTION_PERCENT_BY_CATEGORY = {
   bond: '50',
   fdr: '20',
@@ -62,6 +63,37 @@ const buildDefaultInjectionPercentDraft = (assets) => {
       draft[asset.id] = '';
     }
     return draft;
+  }, {});
+};
+
+const readStoredYearlyInjectionPlans = () => {
+  if (typeof window === 'undefined') return {};
+  try {
+    const rawValue = window.localStorage.getItem(BD_TRUST_INJECTION_PLANS_STORAGE_KEY);
+    if (!rawValue) return {};
+    const parsedValue = JSON.parse(rawValue);
+    return parsedValue && typeof parsedValue === 'object' ? parsedValue : {};
+  } catch (error) {
+    console.error('Unable to read stored BD Trust injection plans:', error);
+    return {};
+  }
+};
+
+const sanitizeYearlyInjectionPlans = (plans, assets) => {
+  const validAssetIds = new Set(assets.map((asset) => String(asset.id)));
+  return Object.entries(plans || {}).reduce((nextPlans, [year, plan]) => {
+    if (!plan || typeof plan !== 'object') return nextPlans;
+    const filteredPlan = Object.entries(plan).reduce((nextPlan, [assetId, amount]) => {
+      const normalizedAmount = Number(amount);
+      if (validAssetIds.has(String(assetId)) && Number.isFinite(normalizedAmount) && normalizedAmount > 0) {
+        nextPlan[assetId] = normalizedAmount;
+      }
+      return nextPlan;
+    }, {});
+    if (Object.keys(filteredPlan).length > 0) {
+      nextPlans[year] = filteredPlan;
+    }
+    return nextPlans;
   }, {});
 };
 
@@ -243,7 +275,7 @@ export default function BDTrustPage({ onSwitch }) {
   const [simulationYears, setSimulationYears] = useState(DEFAULT_SIMULATION_YEARS);
   const [payoutMode, setPayoutMode] = useState('fixed');
   const [payoutGrowthInput, setPayoutGrowthInput] = useState(DEFAULT_PAYOUT_GROWTH_RATE);
-  const [yearlyInjectionPlans, setYearlyInjectionPlans] = useState({});
+  const [yearlyInjectionPlans, setYearlyInjectionPlans] = useState(() => readStoredYearlyInjectionPlans());
   const [injectionModalYear, setInjectionModalYear] = useState(null);
   const [injectionInputMode, setInjectionInputMode] = useState('manual');
   const [injectionDraft, setInjectionDraft] = useState({});
@@ -296,6 +328,23 @@ export default function BDTrustPage({ onSwitch }) {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  useEffect(() => {
+    if (portfolio.length === 0) return;
+    setYearlyInjectionPlans((current) => {
+      const sanitizedPlans = sanitizeYearlyInjectionPlans(current, portfolio);
+      return JSON.stringify(current) === JSON.stringify(sanitizedPlans) ? current : sanitizedPlans;
+    });
+  }, [portfolio]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(BD_TRUST_INJECTION_PLANS_STORAGE_KEY, JSON.stringify(yearlyInjectionPlans));
+    } catch (error) {
+      console.error('Unable to store BD Trust injection plans:', error);
+    }
+  }, [yearlyInjectionPlans]);
 
   // Computed — 24% flat AOP trust tax (Bangladesh tax law for Association of Persons)
   const TRUST_TAX_RATE = 0.24;
