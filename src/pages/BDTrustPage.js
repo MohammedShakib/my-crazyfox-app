@@ -47,21 +47,46 @@ const getEffectivePayout = (ben) => {
   return ben.members.filter((m) => m.active !== false).reduce((s, m) => s + m.monthly_payout_lakh, 0);
 };
 
-const buildYearlySimulation = ({ startingBalance, annualGrossRate, trustTaxRate, baseAnnualPayout, payoutGrowthRate, annualInjectionByYear, years }) => {
+const buildYearlySimulation = ({ portfolio, trustTaxRate, baseAnnualPayout, payoutGrowthRate, annualInjectionPlansByYear, years }) => {
   const simulation = [];
-  let openingBalance = startingBalance;
+  let assetBalances = portfolio.map((asset) => ({
+    id: asset.id,
+    asset_class: asset.asset_class,
+    institution: asset.institution,
+    category: asset.category,
+    rate: asset.rate,
+    tax_rate: asset.tax_rate,
+    amount_bdt: asset.amount_bdt,
+  }));
 
   for (let year = 1; year <= years; year += 1) {
-    const injectionAmount = annualInjectionByYear[year] || 0;
-    const investedBalance = openingBalance + injectionAmount;
+    const yearPlan = annualInjectionPlansByYear[year] || {};
+    const assetBreakdown = assetBalances.map((asset) => {
+      const injectionAmount = yearPlan[asset.id] || 0;
+      return {
+        ...asset,
+        openingAmount: asset.amount_bdt,
+        injectionAmount,
+        investedAmount: asset.amount_bdt + injectionAmount,
+      };
+    });
+    const openingBalance = assetBreakdown.reduce((sum, asset) => sum + asset.openingAmount, 0);
+    const injectionAmount = assetBreakdown.reduce((sum, asset) => sum + asset.injectionAmount, 0);
+    const investedBalance = assetBreakdown.reduce((sum, asset) => sum + asset.investedAmount, 0);
     const annualPayout = baseAnnualPayout * ((1 + payoutGrowthRate) ** (year - 1));
-    const annualGrossIncome = investedBalance * annualGrossRate;
+    const annualGrossIncome = assetBreakdown.reduce((sum, asset) => sum + (asset.investedAmount * asset.rate), 0);
     const annualTax = annualGrossIncome * trustTaxRate;
     const annualNetIncome = annualGrossIncome - annualTax;
     const projectedReinvestment = annualNetIncome - annualPayout;
     const projectedClosingBalance = investedBalance + projectedReinvestment;
     const closingBalance = Math.max(0, projectedClosingBalance);
     const annualReinvestment = closingBalance - investedBalance;
+    const closingAssets = investedBalance > 0
+      ? assetBreakdown.map((asset) => ({
+          ...asset,
+          closingAmount: asset.investedAmount + (annualReinvestment * asset.investedAmount) / investedBalance,
+        }))
+      : assetBreakdown.map((asset) => ({ ...asset, closingAmount: 0 }));
 
     simulation.push({
       year,
@@ -74,9 +99,18 @@ const buildYearlySimulation = ({ startingBalance, annualGrossRate, trustTaxRate,
       annualPayout,
       annualReinvestment,
       closingBalance,
+      assetBreakdown: closingAssets,
     });
 
-    openingBalance = closingBalance;
+    assetBalances = closingAssets.map((asset) => ({
+      id: asset.id,
+      asset_class: asset.asset_class,
+      institution: asset.institution,
+      category: asset.category,
+      rate: asset.rate,
+      tax_rate: asset.tax_rate,
+      amount_bdt: asset.closingAmount,
+    }));
   }
 
   return simulation;
@@ -191,7 +225,9 @@ export default function BDTrustPage({ onSwitch }) {
   const [simulationYears, setSimulationYears] = useState(DEFAULT_SIMULATION_YEARS);
   const [payoutMode, setPayoutMode] = useState('fixed');
   const [payoutGrowthInput, setPayoutGrowthInput] = useState(DEFAULT_PAYOUT_GROWTH_RATE);
-  const [yearlyInjectionInputs, setYearlyInjectionInputs] = useState({});
+  const [yearlyInjectionPlans, setYearlyInjectionPlans] = useState({});
+  const [injectionModalYear, setInjectionModalYear] = useState(null);
+  const [injectionDraft, setInjectionDraft] = useState({});
 
   // Portfolio modal
   const [pModal, setPModal] = useState(null);
@@ -260,22 +296,16 @@ export default function BDTrustPage({ onSwitch }) {
   const payoutRatio    = monthlyNet > 0 ? (totalPayout / monthlyNet) * 100 : 0;
   const annualPayout   = totalPayout * 12;
   const annualNetIncome = monthlyNet * 12;
-  const annualInjectionByYear = Array.from({ length: simulationYears }, (_, index) => index + 1).reduce((acc, year) => {
-    const parsedValue = Number.parseFloat(yearlyInjectionInputs[year] ?? '');
-    acc[year] = Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue * 1e7 : 0;
-    return acc;
-  }, {});
   const parsedPayoutGrowth = Number.parseFloat(payoutGrowthInput);
   const payoutGrowthRate = payoutMode === 'growing' && Number.isFinite(parsedPayoutGrowth) && parsedPayoutGrowth > 0
     ? parsedPayoutGrowth / 100
     : 0;
   const yearlySimulation = buildYearlySimulation({
-    startingBalance: totalBDT,
-    annualGrossRate: grossYieldRate,
+    portfolio,
     trustTaxRate: TRUST_TAX_RATE,
     baseAnnualPayout: annualPayout,
     payoutGrowthRate,
-    annualInjectionByYear,
+    annualInjectionPlansByYear: yearlyInjectionPlans,
     years: simulationYears,
   });
   const finalSimulationYear = yearlySimulation[yearlySimulation.length - 1];
@@ -284,6 +314,11 @@ export default function BDTrustPage({ onSwitch }) {
   const finalPortfolioGain = (finalSimulationYear?.closingBalance || 0) - totalBDT - totalInjectedCapital;
   const contributionBase = totalBDT + totalInjectedCapital;
   const finalPortfolioGainPct = contributionBase > 0 ? (finalPortfolioGain / contributionBase) * 100 : 0;
+  const activeInjectionModalRow = injectionModalYear ? yearlySimulation.find((row) => row.year === injectionModalYear) : null;
+  const injectionDraftTotal = portfolio.reduce((sum, asset) => {
+    const parsedValue = Number.parseFloat(injectionDraft[asset.id] ?? '');
+    return sum + (Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue * 1e7 : 0);
+  }, 0);
 
   const postApi = async (url, body) => {
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -317,15 +352,55 @@ export default function BDTrustPage({ onSwitch }) {
   const deletePortfolio = async (id) => {
     if (!window.confirm('Remove this asset from the portfolio?')) return;
     setSaving(true);
-    try { setPortfolio(await postApi(BD_EP.deletePortfolio, { id })); }
+    try {
+      setPortfolio(await postApi(BD_EP.deletePortfolio, { id }));
+      setYearlyInjectionPlans((current) => {
+        const next = {};
+        Object.entries(current).forEach(([year, plan]) => {
+          const filtered = Object.fromEntries(Object.entries(plan).filter(([assetId]) => Number(assetId) !== id));
+          if (Object.keys(filtered).length > 0) next[year] = filtered;
+        });
+        return next;
+      });
+    }
     catch (e) { console.error(e); }
     finally { setSaving(false); }
   };
-  const updateYearlyInjection = (year, value) => {
-    setYearlyInjectionInputs((current) => ({ ...current, [year]: value }));
+  const openInjectionEditor = (year) => {
+    const currentPlan = yearlyInjectionPlans[year] || {};
+    const nextDraft = {};
+    portfolio.forEach((asset) => {
+      const plannedAmount = currentPlan[asset.id] || 0;
+      nextDraft[asset.id] = plannedAmount > 0 ? (plannedAmount / 1e7).toFixed(2) : '';
+    });
+    setInjectionDraft(nextDraft);
+    setInjectionModalYear(year);
+  };
+  const closeInjectionEditor = () => {
+    setInjectionModalYear(null);
+    setInjectionDraft({});
+  };
+  const updateInjectionDraft = (assetId, value) => {
+    setInjectionDraft((current) => ({ ...current, [assetId]: value }));
+  };
+  const saveInjectionPlan = () => {
+    const nextPlan = {};
+    portfolio.forEach((asset) => {
+      const parsedValue = Number.parseFloat(injectionDraft[asset.id] ?? '');
+      if (Number.isFinite(parsedValue) && parsedValue > 0) {
+        nextPlan[asset.id] = parsedValue * 1e7;
+      }
+    });
+    setYearlyInjectionPlans((current) => {
+      const next = { ...current };
+      if (Object.keys(nextPlan).length > 0) next[injectionModalYear] = nextPlan;
+      else delete next[injectionModalYear];
+      return next;
+    });
+    closeInjectionEditor();
   };
   const clearYearlyInjections = () => {
-    setYearlyInjectionInputs({});
+    setYearlyInjectionPlans({});
   };
 
   // ── Beneficiary group handlers ──
@@ -539,7 +614,7 @@ export default function BDTrustPage({ onSwitch }) {
                 onClick={clearYearlyInjections}
                 className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-800 text-gray-400 hover:text-white transition-colors"
               >
-                Clear Injections
+                Clear All Plans
               </button>
             </div>
 
@@ -626,11 +701,11 @@ export default function BDTrustPage({ onSwitch }) {
                   <th className="px-4 py-3">Year</th>
                   <th className="px-4 py-3">Opening</th>
                   <th className="px-4 py-3">Injection</th>
-                  <th className="px-4 py-3">Invested Base</th>
                   <th className="px-4 py-3">Net Income</th>
                   <th className="px-4 py-3">Payouts</th>
                   <th className="px-4 py-3">Reinvestment</th>
                   <th className="px-4 py-3">Closing</th>
+                  <th className="px-4 py-3">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -638,27 +713,22 @@ export default function BDTrustPage({ onSwitch }) {
                   <tr key={row.year} className="border-b table-row-border hover:bg-gray-800/40 transition-colors">
                     <td className="px-4 py-3 font-medium text-white">Year {row.year}</td>
                     <td className="px-4 py-3 text-gray-200">{formatCr(row.openingBalance)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={yearlyInjectionInputs[row.year] ?? ''}
-                          onChange={(e) => updateYearlyInjection(row.year, e.target.value)}
-                          placeholder="0.00"
-                          className="w-24 rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white outline-none focus:ring-2 focus:ring-cyan-500"
-                        />
-                        <span className="text-xs text-gray-500">Cr</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-cyan-300">{formatCr(row.investedBalance)}</td>
+                    <td className="px-4 py-3 text-cyan-300">{formatCr(row.injectionAmount)}</td>
                     <td className="px-4 py-3 text-green-400">{formatCr(row.annualNetIncome)}</td>
                     <td className="px-4 py-3 text-yellow-400">{formatCr(row.annualPayout)}</td>
                     <td className={`px-4 py-3 font-semibold ${row.annualReinvestment >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
                       {formatCr(row.annualReinvestment)}
                     </td>
                     <td className="px-4 py-3 text-white font-semibold">{formatCr(row.closingBalance)}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => openInjectionEditor(row.year)}
+                        className="rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-300 hover:text-white transition-colors"
+                      >
+                        {row.injectionAmount > 0 ? 'Edit Plan' : 'Add Plan'}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -925,6 +995,70 @@ export default function BDTrustPage({ onSwitch }) {
           <MInput label="Amount" hint="(Crore BDT)" type="number" min="0" step="0.01"
             value={dAmountCr} onChange={(e) => setDAmountCr(e.target.value)} placeholder="e.g. 10.00" />
           <MInput label="Note" value={dNote} onChange={(e) => setDNote(e.target.value)} placeholder="e.g. Q3 2026 reinvestment" />
+        </ModalWrapper>
+      )}
+
+      {injectionModalYear !== null && (
+        <ModalWrapper
+          title={`Year ${injectionModalYear} Injection Plan`}
+          subtitle="Allocate this year's new capital across the current asset list. Any new asset added above will appear here automatically."
+          onClose={closeInjectionEditor}
+          onSave={saveInjectionPlan}
+          saving={saving}
+          saveLabel="Save Plan"
+        >
+          <div className="rounded-lg border border-gray-700 bg-gray-800/40 p-4">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-400">Planned Total Injection</span>
+              <span className="font-semibold text-cyan-300">{formatCr(injectionDraftTotal)}</span>
+            </div>
+          </div>
+
+          {(activeInjectionModalRow?.assetBreakdown || portfolio).map((asset) => (
+            <div key={asset.id} className="rounded-lg border border-gray-700 bg-gray-800/30 p-4">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <div className="text-sm font-medium text-white">{asset.asset_class}</div>
+                  <div className="text-xs text-gray-500 mt-1">{asset.institution}</div>
+                </div>
+                <div className="text-right text-xs">
+                  <div className="text-gray-500">Rate</div>
+                  <div className="text-blue-400">{(asset.rate * 100).toFixed(2)}%</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Opening Amount</div>
+                  <div className="text-sm font-semibold text-gray-200">{formatCr(asset.openingAmount ?? asset.amount_bdt)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Post-Injection Base</div>
+                  <div className="text-sm font-semibold text-cyan-300">{formatCr(asset.investedAmount ?? asset.amount_bdt)}</div>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Inject Here (Cr)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={injectionDraft[asset.id] ?? ''}
+                    onChange={(e) => updateInjectionDraft(asset.id, e.target.value)}
+                    placeholder="0.00"
+                    className="w-full rounded-md border border-cyan-500/40 bg-gray-900 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-cyan-500"
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => setInjectionDraft({})}
+            className="rounded-md border border-gray-700 px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
+          >
+            Reset This Year
+          </button>
         </ModalWrapper>
       )}
 
