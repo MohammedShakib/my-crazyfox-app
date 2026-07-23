@@ -36,11 +36,42 @@ const BENEFICIARY_CONFIG = {
 const CHART_COLORS = {
   bond: '#3b82f6', fdr: '#22c55e', real_estate: '#f59e0b', capital_market: '#ef4444',
 };
+const SIMULATION_YEARS = 10;
 
 // Returns effective monthly payout in lakh (sum of active members if any, else direct value)
 const getEffectivePayout = (ben) => {
   if (!ben.members || ben.members.length === 0) return ben.monthly_payout_lakh;
   return ben.members.filter((m) => m.active !== false).reduce((s, m) => s + m.monthly_payout_lakh, 0);
+};
+
+const buildYearlySimulation = ({ startingBalance, annualGrossRate, trustTaxRate, annualPayout, years }) => {
+  const simulation = [];
+  let openingBalance = startingBalance;
+
+  for (let year = 1; year <= years; year += 1) {
+    const annualGrossIncome = openingBalance * annualGrossRate;
+    const annualTax = annualGrossIncome * trustTaxRate;
+    const annualNetIncome = annualGrossIncome - annualTax;
+    const projectedReinvestment = annualNetIncome - annualPayout;
+    const projectedClosingBalance = openingBalance + projectedReinvestment;
+    const closingBalance = Math.max(0, projectedClosingBalance);
+    const annualReinvestment = closingBalance - openingBalance;
+
+    simulation.push({
+      year,
+      openingBalance,
+      annualGrossIncome,
+      annualTax,
+      annualNetIncome,
+      annualPayout,
+      annualReinvestment,
+      closingBalance,
+    });
+
+    openingBalance = closingBalance;
+  }
+
+  return simulation;
 };
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -205,7 +236,8 @@ export default function BDTrustPage({ onSwitch }) {
   const additionalTax    = Math.max(0, monthlyTrustTax - monthlySourceTax);
   const monthlyTax       = monthlyTrustTax; // total = 24% of gross
   const monthlyNet       = monthlyGross - monthlyTax;
-  const blendedYield     = totalBDT > 0 ? (portfolio.reduce((s, r) => s + r.amount_bdt * r.rate, 0) / totalBDT) * 100 : 0;
+  const grossYieldRate   = totalBDT > 0 ? portfolio.reduce((s, r) => s + r.amount_bdt * r.rate, 0) / totalBDT : 0;
+  const blendedYield     = grossYieldRate * 100;
 
   const activeBens     = beneficiaries.filter((b) => b.active !== false);
   const familyPayout   = activeBens.filter((b) => b.type === 'family').reduce((s, b) => s + getEffectivePayout(b) * 1e5, 0);
@@ -214,6 +246,17 @@ export default function BDTrustPage({ onSwitch }) {
   const totalPayout    = familyPayout + ngoPayout + donationPayout;
   const reinvestment   = monthlyNet - totalPayout;
   const payoutRatio    = monthlyNet > 0 ? (totalPayout / monthlyNet) * 100 : 0;
+  const annualPayout   = totalPayout * 12;
+  const annualNetIncome = monthlyNet * 12;
+  const yearlySimulation = buildYearlySimulation({
+    startingBalance: totalBDT,
+    annualGrossRate: grossYieldRate,
+    trustTaxRate: TRUST_TAX_RATE,
+    annualPayout,
+    years: SIMULATION_YEARS,
+  });
+  const finalSimulationYear = yearlySimulation[yearlySimulation.length - 1];
+  const cumulativeReinvestment = yearlySimulation.reduce((sum, row) => sum + row.annualReinvestment, 0);
 
   const postApi = async (url, body) => {
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -439,6 +482,57 @@ export default function BDTrustPage({ onSwitch }) {
         </div>
 
         {/* ── Monthly Cash Flow ── */}
+        <div className="card shadow-lg border border-gray-700/50 overflow-hidden md:overflow-x-auto mb-8">
+          <div className="px-6 py-5 border-b border-gray-700 flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="text-lg font-semibold text-white">10-Year Growth Simulation</h2>
+              <p className="text-sm text-gray-400 mt-1">
+                Assumes current asset mix, {blendedYield.toFixed(2)}% blended yield, 24% trust tax, and fixed annual payouts with all surplus reinvested.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto lg:min-w-[32rem]">
+              <div className="rounded-lg border border-gray-700 bg-gray-800/40 p-4">
+                <div className="text-xs text-gray-400 mb-1">Current Annual Net</div>
+                <div className="text-xl font-bold text-green-400">{formatCr(annualNetIncome)}</div>
+              </div>
+              <div className="rounded-lg border border-gray-700 bg-gray-800/40 p-4">
+                <div className="text-xs text-gray-400 mb-1">Cumulative Reinvestment</div>
+                <div className={`text-xl font-bold ${cumulativeReinvestment >= 0 ? 'text-blue-400' : 'text-red-400'}`}>{formatCr(cumulativeReinvestment)}</div>
+              </div>
+              <div className="rounded-lg border border-gray-700 bg-gray-800/40 p-4">
+                <div className="text-xs text-gray-400 mb-1">Year 10 Portfolio</div>
+                <div className="text-xl font-bold text-white">{formatCr(finalSimulationYear?.closingBalance || 0)}</div>
+              </div>
+            </div>
+          </div>
+          <table className="w-full min-w-[860px] text-sm text-left text-gray-300">
+            <thead className="text-xs text-gray-400 uppercase table-header-bg">
+              <tr>
+                <th className="px-4 py-3">Year</th>
+                <th className="px-4 py-3">Opening</th>
+                <th className="px-4 py-3">Net Income</th>
+                <th className="px-4 py-3">Payouts</th>
+                <th className="px-4 py-3">Reinvestment</th>
+                <th className="px-4 py-3">Closing</th>
+              </tr>
+            </thead>
+            <tbody>
+              {yearlySimulation.map((row) => (
+                <tr key={row.year} className="border-b table-row-border hover:bg-gray-800/40 transition-colors">
+                  <td className="px-4 py-3 font-medium text-white">Year {row.year}</td>
+                  <td className="px-4 py-3 text-gray-200">{formatCr(row.openingBalance)}</td>
+                  <td className="px-4 py-3 text-green-400">{formatCr(row.annualNetIncome)}</td>
+                  <td className="px-4 py-3 text-yellow-400">{formatCr(row.annualPayout)}</td>
+                  <td className={`px-4 py-3 font-semibold ${row.annualReinvestment >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
+                    {formatCr(row.annualReinvestment)}
+                  </td>
+                  <td className="px-4 py-3 text-white font-semibold">{formatCr(row.closingBalance)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="card p-6 border border-gray-700/50">
             <h2 className="text-lg font-semibold text-white mb-4">Monthly Cash Flow</h2>
