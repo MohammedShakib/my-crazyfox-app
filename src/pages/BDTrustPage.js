@@ -185,10 +185,10 @@ function MInput({ label, hint, type = 'text', value, onChange, placeholder, step
   );
 }
 
-function ModalWrapper({ title, subtitle, onClose, children, error, onSave, saving, saveLabel }) {
+function ModalWrapper({ title, subtitle, onClose, children, error, onSave, saving, saveLabel, maxWidthClass = 'max-w-lg' }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="relative w-full max-w-lg rounded-xl border border-gray-700 bg-gray-900 p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+      <div className={`relative w-full ${maxWidthClass} rounded-xl border border-gray-700 bg-gray-900 p-6 shadow-xl max-h-[90vh] overflow-y-auto`}>
         <button type="button" onClick={onClose} className="absolute right-3 top-3 text-gray-400 hover:text-red-400 transition-colors">
           <FiXCircle size={20} />
         </button>
@@ -227,7 +227,11 @@ export default function BDTrustPage({ onSwitch }) {
   const [payoutGrowthInput, setPayoutGrowthInput] = useState(DEFAULT_PAYOUT_GROWTH_RATE);
   const [yearlyInjectionPlans, setYearlyInjectionPlans] = useState({});
   const [injectionModalYear, setInjectionModalYear] = useState(null);
+  const [injectionInputMode, setInjectionInputMode] = useState('manual');
   const [injectionDraft, setInjectionDraft] = useState({});
+  const [injectionPercentDraft, setInjectionPercentDraft] = useState({});
+  const [injectionTotalDraft, setInjectionTotalDraft] = useState('');
+  const [injectionError, setInjectionError] = useState('');
 
   // Portfolio modal
   const [pModal, setPModal] = useState(null);
@@ -319,6 +323,16 @@ export default function BDTrustPage({ onSwitch }) {
     const parsedValue = Number.parseFloat(injectionDraft[asset.id] ?? '');
     return sum + (Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue * 1e7 : 0);
   }, 0);
+  const parsedInjectionTotalDraft = Number.parseFloat(injectionTotalDraft);
+  const percentageTotalInjection = Number.isFinite(parsedInjectionTotalDraft) && parsedInjectionTotalDraft > 0 ? parsedInjectionTotalDraft * 1e7 : 0;
+  const injectionPercentSum = portfolio.reduce((sum, asset) => {
+    const parsedValue = Number.parseFloat(injectionPercentDraft[asset.id] ?? '');
+    return sum + (Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 0);
+  }, 0);
+  const percentageAllocationTotal = portfolio.reduce((sum, asset) => {
+    const parsedValue = Number.parseFloat(injectionPercentDraft[asset.id] ?? '');
+    return sum + (Number.isFinite(parsedValue) && parsedValue > 0 ? (percentageTotalInjection * parsedValue) / 100 : 0);
+  }, 0);
 
   const postApi = async (url, body) => {
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -369,28 +383,88 @@ export default function BDTrustPage({ onSwitch }) {
   const openInjectionEditor = (year) => {
     const currentPlan = yearlyInjectionPlans[year] || {};
     const nextDraft = {};
+    const nextPercentDraft = {};
+    const totalPlannedBdt = Object.values(currentPlan).reduce((sum, value) => sum + value, 0);
     portfolio.forEach((asset) => {
       const plannedAmount = currentPlan[asset.id] || 0;
       nextDraft[asset.id] = plannedAmount > 0 ? (plannedAmount / 1e7).toFixed(2) : '';
+      nextPercentDraft[asset.id] = totalPlannedBdt > 0 ? ((plannedAmount / totalPlannedBdt) * 100).toFixed(2) : '';
     });
+    setInjectionInputMode('manual');
     setInjectionDraft(nextDraft);
+    setInjectionPercentDraft(nextPercentDraft);
+    setInjectionTotalDraft(totalPlannedBdt > 0 ? (totalPlannedBdt / 1e7).toFixed(2) : '');
+    setInjectionError('');
     setInjectionModalYear(year);
   };
   const closeInjectionEditor = () => {
     setInjectionModalYear(null);
+    setInjectionInputMode('manual');
     setInjectionDraft({});
+    setInjectionPercentDraft({});
+    setInjectionTotalDraft('');
+    setInjectionError('');
   };
   const updateInjectionDraft = (assetId, value) => {
     setInjectionDraft((current) => ({ ...current, [assetId]: value }));
+    setInjectionError('');
+  };
+  const updateInjectionPercentDraft = (assetId, value) => {
+    setInjectionPercentDraft((current) => ({ ...current, [assetId]: value }));
+    setInjectionError('');
+  };
+  const switchInjectionMode = (mode) => {
+    if (mode === injectionInputMode) return;
+    if (mode === 'percentage') {
+      const nextTotalCr = injectionDraftTotal > 0 ? (injectionDraftTotal / 1e7).toFixed(2) : injectionTotalDraft;
+      const nextPercentDraft = {};
+      portfolio.forEach((asset) => {
+        const parsedValue = Number.parseFloat(injectionDraft[asset.id] ?? '');
+        if (injectionDraftTotal > 0 && Number.isFinite(parsedValue) && parsedValue > 0) {
+          nextPercentDraft[asset.id] = ((parsedValue * 1e7 * 100) / injectionDraftTotal).toFixed(2);
+        } else {
+          nextPercentDraft[asset.id] = '';
+        }
+      });
+      setInjectionPercentDraft(nextPercentDraft);
+      setInjectionTotalDraft(nextTotalCr);
+    } else {
+      const nextDraft = {};
+      portfolio.forEach((asset) => {
+        const parsedPercent = Number.parseFloat(injectionPercentDraft[asset.id] ?? '');
+        const allocatedBdt = Number.isFinite(parsedPercent) && parsedPercent > 0 ? (percentageTotalInjection * parsedPercent) / 100 : 0;
+        nextDraft[asset.id] = allocatedBdt > 0 ? (allocatedBdt / 1e7).toFixed(2) : '';
+      });
+      setInjectionDraft(nextDraft);
+    }
+    setInjectionInputMode(mode);
+    setInjectionError('');
   };
   const saveInjectionPlan = () => {
     const nextPlan = {};
-    portfolio.forEach((asset) => {
-      const parsedValue = Number.parseFloat(injectionDraft[asset.id] ?? '');
-      if (Number.isFinite(parsedValue) && parsedValue > 0) {
-        nextPlan[asset.id] = parsedValue * 1e7;
+    if (injectionInputMode === 'manual') {
+      portfolio.forEach((asset) => {
+        const parsedValue = Number.parseFloat(injectionDraft[asset.id] ?? '');
+        if (Number.isFinite(parsedValue) && parsedValue > 0) {
+          nextPlan[asset.id] = parsedValue * 1e7;
+        }
+      });
+    } else {
+      if (percentageTotalInjection <= 0) {
+        setInjectionError('Enter a total injection amount first.');
+        return;
       }
-    });
+      if (Math.abs(injectionPercentSum - 100) > 0.05) {
+        setInjectionError('Percentage allocations must add up to 100%.');
+        return;
+      }
+      portfolio.forEach((asset) => {
+        const parsedPercent = Number.parseFloat(injectionPercentDraft[asset.id] ?? '');
+        if (Number.isFinite(parsedPercent) && parsedPercent > 0) {
+          nextPlan[asset.id] = (percentageTotalInjection * parsedPercent) / 100;
+        }
+      });
+    }
     setYearlyInjectionPlans((current) => {
       const next = { ...current };
       if (Object.keys(nextPlan).length > 0) next[injectionModalYear] = nextPlan;
@@ -472,7 +546,7 @@ export default function BDTrustPage({ onSwitch }) {
 
   return (
     <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-gray-900 via-[#030712] to-gray-900">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto flex flex-col">
 
         {/* ── Header ── */}
         <header className="flex items-center justify-between mb-10 flex-wrap gap-4">
@@ -600,7 +674,7 @@ export default function BDTrustPage({ onSwitch }) {
         </div>
 
         {/* ── Monthly Cash Flow ── */}
-        <div className="card shadow-lg border border-gray-700/50 overflow-hidden mb-8">
+        <div className="card shadow-lg border border-gray-700/50 overflow-hidden mb-8 order-last">
           <div className="px-6 py-5 border-b border-gray-700">
             <div className="flex items-start justify-between gap-4 flex-wrap mb-5">
               <div>
@@ -1003,62 +1077,196 @@ export default function BDTrustPage({ onSwitch }) {
           title={`Year ${injectionModalYear} Injection Plan`}
           subtitle="Allocate this year's new capital across the current asset list. Any new asset added above will appear here automatically."
           onClose={closeInjectionEditor}
+          error={injectionError}
           onSave={saveInjectionPlan}
           saving={saving}
           saveLabel="Save Plan"
+          maxWidthClass="max-w-5xl"
         >
-          <div className="rounded-lg border border-gray-700 bg-gray-800/40 p-4">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Planned Total Injection</span>
-              <span className="font-semibold text-cyan-300">{formatCr(injectionDraftTotal)}</span>
+          <div className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-5">
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-gray-700 bg-gradient-to-br from-gray-800/70 via-gray-900 to-gray-900 p-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.18em] text-gray-500">Planning Mode</div>
+                    <div className="text-sm text-gray-300 mt-1">Choose detailed manual amounts or distribute by percentage of a total injection.</div>
+                  </div>
+                  <div className="inline-flex rounded-xl border border-gray-700 bg-gray-950/60 p-1">
+                    {[
+                      { key: 'manual', label: 'Manual' },
+                      { key: 'percentage', label: 'Percentage' },
+                    ].map((option) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => switchInjectionMode(option.key)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          injectionInputMode === option.key ? 'bg-cyan-500 text-slate-950' : 'text-gray-400 hover:text-white'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {injectionInputMode === 'percentage' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+                      <div className="text-xs text-gray-500 mb-1">Total Injection</div>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={injectionTotalDraft}
+                        onChange={(e) => { setInjectionTotalDraft(e.target.value); setInjectionError(''); }}
+                        placeholder="100.00"
+                        className="w-full rounded-md border border-cyan-500/40 bg-gray-950 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-cyan-500"
+                      />
+                      <div className="text-xs text-gray-500 mt-2">Crore BDT to distribute this year.</div>
+                    </div>
+                    <div className="rounded-xl border border-gray-700 bg-gray-900/80 p-4">
+                      <div className="text-xs text-gray-500 mb-1">Allocated</div>
+                      <div className="text-xl font-semibold text-cyan-300">{formatCr(percentageAllocationTotal)}</div>
+                      <div className="text-xs text-gray-500 mt-2">Live amount generated from your percentages.</div>
+                    </div>
+                    <div className="rounded-xl border border-gray-700 bg-gray-900/80 p-4">
+                      <div className="text-xs text-gray-500 mb-1">Percent Total</div>
+                      <div className={`text-xl font-semibold ${Math.abs(injectionPercentSum - 100) <= 0.05 ? 'text-emerald-300' : 'text-amber-300'}`}>
+                        {injectionPercentSum.toFixed(2)}%
+                      </div>
+                      <div className="text-xs text-gray-500 mt-2">Save requires exactly 100% allocation.</div>
+                    </div>
+                  </div>
+                )}
+
+                {injectionInputMode === 'manual' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-gray-700 bg-gray-900/80 p-4">
+                      <div className="text-xs text-gray-500 mb-1">Manual Total</div>
+                      <div className="text-xl font-semibold text-cyan-300">{formatCr(injectionDraftTotal)}</div>
+                      <div className="text-xs text-gray-500 mt-2">Sum of direct asset-wise manual inputs.</div>
+                    </div>
+                    <div className="rounded-xl border border-gray-700 bg-gray-900/80 p-4">
+                      <div className="text-xs text-gray-500 mb-1">Mode Behavior</div>
+                      <div className="text-sm text-gray-300 leading-6">Manual mode gives exact control over each asset. Switch to percentage anytime and the draft will convert for you.</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {(activeInjectionModalRow?.assetBreakdown || portfolio).map((asset) => {
+                const openingAmount = asset.openingAmount ?? asset.amount_bdt;
+                const manualAmountCr = injectionDraft[asset.id] ?? '';
+                const parsedPercent = Number.parseFloat(injectionPercentDraft[asset.id] ?? '');
+                const allocatedBdt = Number.isFinite(parsedPercent) && parsedPercent > 0 ? (percentageTotalInjection * parsedPercent) / 100 : 0;
+                const previewBase = openingAmount + (injectionInputMode === 'manual'
+                  ? ((Number.parseFloat(manualAmountCr) > 0 ? Number.parseFloat(manualAmountCr) : 0) * 1e7)
+                  : allocatedBdt);
+
+                return (
+                  <div key={asset.id} className="rounded-2xl border border-gray-700 bg-gray-800/30 p-4">
+                    <div className="flex items-start justify-between gap-3 mb-4">
+                      <div>
+                        <div className="text-sm font-medium text-white">{asset.asset_class}</div>
+                        <div className="text-xs text-gray-500 mt-1">{asset.institution}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-gray-500">Advertised Rate</div>
+                        <div className="text-sm font-semibold text-blue-400">{(asset.rate * 100).toFixed(2)}%</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                      <div className="rounded-xl border border-gray-700 bg-gray-900/60 p-3">
+                        <div className="text-xs text-gray-500 mb-1">Opening Amount</div>
+                        <div className="text-sm font-semibold text-gray-200">{formatCr(openingAmount)}</div>
+                      </div>
+                      <div className="rounded-xl border border-gray-700 bg-gray-900/60 p-3">
+                        <div className="text-xs text-gray-500 mb-1">Preview Base</div>
+                        <div className="text-sm font-semibold text-cyan-300">{formatCr(previewBase)}</div>
+                      </div>
+                      {injectionInputMode === 'manual' ? (
+                        <div className="md:col-span-2">
+                          <label className="block text-xs text-gray-500 mb-1">Manual Inject (Cr)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={manualAmountCr}
+                            onChange={(e) => updateInjectionDraft(asset.id, e.target.value)}
+                            placeholder="0.00"
+                            className="w-full rounded-xl border border-cyan-500/40 bg-gray-950 px-3 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-cyan-500"
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Allocation %</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={injectionPercentDraft[asset.id] ?? ''}
+                              onChange={(e) => updateInjectionPercentDraft(asset.id, e.target.value)}
+                              placeholder="0.00"
+                              className="w-full rounded-xl border border-emerald-500/30 bg-gray-950 px-3 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                            />
+                          </div>
+                          <div className="rounded-xl border border-gray-700 bg-gray-900/60 p-3">
+                            <div className="text-xs text-gray-500 mb-1">Allocated Amount</div>
+                            <div className="text-sm font-semibold text-emerald-300">{formatCr(allocatedBdt)}</div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-gray-700 bg-gray-900/80 p-5">
+                <div className="text-xs uppercase tracking-[0.18em] text-gray-500 mb-3">Year Summary</div>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Opening Portfolio</span>
+                    <span className="font-semibold text-white">{formatCr(activeInjectionModalRow?.openingBalance || 0)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Current Planned Injection</span>
+                    <span className="font-semibold text-cyan-300">{formatCr(injectionInputMode === 'manual' ? injectionDraftTotal : percentageAllocationTotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Current Payout Mode</span>
+                    <span className="font-semibold text-gray-200">{payoutMode === 'growing' ? `Growing ${payoutGrowthRate * 100}%` : 'Fixed'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-700 bg-gray-900/80 p-5">
+                <div className="text-xs uppercase tracking-[0.18em] text-gray-500 mb-3">Tips</div>
+                <div className="space-y-2 text-sm text-gray-400 leading-6">
+                  <p>`Manual` mode is best when the injection is negotiated asset by asset.</p>
+                  <p>`Percentage` mode is better when you know the total capital first and want a target distribution.</p>
+                  <p>Adding or removing assets above will automatically affect the planner list for future edits.</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setInjectionDraft({});
+                  setInjectionPercentDraft({});
+                  setInjectionTotalDraft('');
+                  setInjectionError('');
+                }}
+                className="w-full rounded-xl border border-gray-700 px-4 py-3 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
+              >
+                Reset Current Draft
+              </button>
             </div>
           </div>
-
-          {(activeInjectionModalRow?.assetBreakdown || portfolio).map((asset) => (
-            <div key={asset.id} className="rounded-lg border border-gray-700 bg-gray-800/30 p-4">
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <div>
-                  <div className="text-sm font-medium text-white">{asset.asset_class}</div>
-                  <div className="text-xs text-gray-500 mt-1">{asset.institution}</div>
-                </div>
-                <div className="text-right text-xs">
-                  <div className="text-gray-500">Rate</div>
-                  <div className="text-blue-400">{(asset.rate * 100).toFixed(2)}%</div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">Opening Amount</div>
-                  <div className="text-sm font-semibold text-gray-200">{formatCr(asset.openingAmount ?? asset.amount_bdt)}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">Post-Injection Base</div>
-                  <div className="text-sm font-semibold text-cyan-300">{formatCr(asset.investedAmount ?? asset.amount_bdt)}</div>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Inject Here (Cr)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={injectionDraft[asset.id] ?? ''}
-                    onChange={(e) => updateInjectionDraft(asset.id, e.target.value)}
-                    placeholder="0.00"
-                    className="w-full rounded-md border border-cyan-500/40 bg-gray-900 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-cyan-500"
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-
-          <button
-            type="button"
-            onClick={() => setInjectionDraft({})}
-            className="rounded-md border border-gray-700 px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
-          >
-            Reset This Year
-          </button>
         </ModalWrapper>
       )}
 
