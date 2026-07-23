@@ -164,6 +164,18 @@ const updateBDTrustPortfolioEntry = async (req, res) => {
   }
 };
 
+const deleteBDTrustPortfolioEntry = async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (id === undefined) return res.status(400).send('Missing id');
+    await db.collection('bd_trust_portfolio').doc(String(id)).delete();
+    const all = await db.collection('bd_trust_portfolio').orderBy('id', 'asc').get();
+    res.status(200).json(all.docs.map((d) => d.data()));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 const getBDTrustBeneficiaries = async (req, res) => {
   try {
     const col = db.collection('bd_trust_beneficiaries');
@@ -317,6 +329,8 @@ app.post("/addBDTrustPortfolioEntry", addBDTrustPortfolioEntry);
 app.post("/api/addBDTrustPortfolioEntry", addBDTrustPortfolioEntry);
 app.post("/updateBDTrustPortfolioEntry", updateBDTrustPortfolioEntry);
 app.post("/api/updateBDTrustPortfolioEntry", updateBDTrustPortfolioEntry);
+app.post("/deleteBDTrustPortfolioEntry", deleteBDTrustPortfolioEntry);
+app.post("/api/deleteBDTrustPortfolioEntry", deleteBDTrustPortfolioEntry);
 app.get("/getBDTrustBeneficiaries", getBDTrustBeneficiaries);
 app.get("/api/getBDTrustBeneficiaries", getBDTrustBeneficiaries);
 app.post("/addBDTrustBeneficiary", addBDTrustBeneficiary);

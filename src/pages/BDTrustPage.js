@@ -10,6 +10,7 @@ const BD_EP = {
   portfolio:      '/api/getBDTrustPortfolio',
   addPortfolio:   '/api/addBDTrustPortfolioEntry',
   updatePortfolio:'/api/updateBDTrustPortfolioEntry',
+  deletePortfolio:'/api/deleteBDTrustPortfolioEntry',
   beneficiaries:  '/api/getBDTrustBeneficiaries',
   addBeneficiary: '/api/addBDTrustBeneficiary',
   updateBeneficiary: '/api/updateBDTrustBeneficiary',
@@ -46,23 +47,27 @@ const getEffectivePayout = (ben) => {
   return ben.members.filter((m) => m.active !== false).reduce((s, m) => s + m.monthly_payout_lakh, 0);
 };
 
-const buildYearlySimulation = ({ startingBalance, annualGrossRate, trustTaxRate, baseAnnualPayout, payoutGrowthRate, years }) => {
+const buildYearlySimulation = ({ startingBalance, annualGrossRate, trustTaxRate, baseAnnualPayout, payoutGrowthRate, annualInjectionByYear, years }) => {
   const simulation = [];
   let openingBalance = startingBalance;
 
   for (let year = 1; year <= years; year += 1) {
+    const injectionAmount = annualInjectionByYear[year] || 0;
+    const investedBalance = openingBalance + injectionAmount;
     const annualPayout = baseAnnualPayout * ((1 + payoutGrowthRate) ** (year - 1));
-    const annualGrossIncome = openingBalance * annualGrossRate;
+    const annualGrossIncome = investedBalance * annualGrossRate;
     const annualTax = annualGrossIncome * trustTaxRate;
     const annualNetIncome = annualGrossIncome - annualTax;
     const projectedReinvestment = annualNetIncome - annualPayout;
-    const projectedClosingBalance = openingBalance + projectedReinvestment;
+    const projectedClosingBalance = investedBalance + projectedReinvestment;
     const closingBalance = Math.max(0, projectedClosingBalance);
-    const annualReinvestment = closingBalance - openingBalance;
+    const annualReinvestment = closingBalance - investedBalance;
 
     simulation.push({
       year,
       openingBalance,
+      injectionAmount,
+      investedBalance,
       annualGrossIncome,
       annualTax,
       annualNetIncome,
@@ -108,100 +113,6 @@ function DonutChart({ slices }) {
       </text>
       <text x={cx} y={cy + 12} textAnchor="middle" fill="#9ca3af" fontSize="9">Cr BDT</text>
     </svg>
-  );
-}
-
-function SimulationTrendChart({ rows }) {
-  if (!rows.length) return null;
-
-  const width = 820;
-  const height = 280;
-  const paddingX = 36;
-  const paddingTop = 20;
-  const paddingBottom = 36;
-  const chartHeight = height - paddingTop - paddingBottom;
-  const chartWidth = width - paddingX * 2;
-
-  const points = [
-    { label: 'Now', value: rows[0].openingBalance },
-    ...rows.map((row) => ({ label: `Y${row.year}`, value: row.closingBalance })),
-  ];
-
-  const values = points.map((point) => point.value);
-  const maxValue = Math.max(...values, 1);
-  const minValue = Math.min(...values, 0);
-  const range = Math.max(maxValue - minValue, maxValue * 0.15, 1);
-  const stepX = points.length > 1 ? chartWidth / (points.length - 1) : 0;
-
-  const getX = (index) => paddingX + stepX * index;
-  const getY = (value) => paddingTop + ((maxValue - value) / range) * chartHeight;
-
-  const linePoints = points.map((point, index) => `${getX(index)},${getY(point.value)}`).join(' ');
-  const areaPath = [
-    `M ${getX(0)} ${height - paddingBottom}`,
-    ...points.map((point, index) => `L ${getX(index)} ${getY(point.value)}`),
-    `L ${getX(points.length - 1)} ${height - paddingBottom}`,
-    'Z',
-  ].join(' ');
-
-  const labelStep = points.length > 12 ? 5 : points.length > 7 ? 2 : 1;
-  const tickIndexes = points
-    .map((_, index) => index)
-    .filter((index) => index === 0 || index === points.length - 1 || index % labelStep === 0);
-  const yTicks = Array.from({ length: 4 }, (_, index) => maxValue - (range / 3) * index);
-
-  return (
-    <div className="rounded-xl border border-gray-700 bg-gray-900/40 p-4 md:p-5">
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <div>
-          <div className="text-sm font-medium text-white">Portfolio Trajectory</div>
-          <div className="text-xs text-gray-500">Closing portfolio value across the selected simulation horizon.</div>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-gray-400">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-400" />
-          Closing portfolio
-        </div>
-      </div>
-      <div className="h-72">
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full" role="img" aria-label="Portfolio trajectory chart">
-          <defs>
-            <linearGradient id="simulationAreaFill" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.35" />
-              <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.02" />
-            </linearGradient>
-          </defs>
-
-          {yTicks.map((tick) => (
-            <g key={tick}>
-              <line
-                x1={paddingX}
-                y1={getY(tick)}
-                x2={width - paddingX}
-                y2={getY(tick)}
-                stroke="#1f2937"
-                strokeDasharray="4 6"
-              />
-              <text x="4" y={getY(tick) + 4} fill="#6b7280" fontSize="11">
-                {numCr(tick)} Cr
-              </text>
-            </g>
-          ))}
-
-          <path d={areaPath} fill="url(#simulationAreaFill)" />
-          <polyline fill="none" stroke="#60a5fa" strokeWidth="3" points={linePoints} />
-
-          {points.map((point, index) => (
-            <circle key={point.label} cx={getX(index)} cy={getY(point.value)} r="4" fill="#93c5fd" stroke="#0f172a" strokeWidth="2" />
-          ))}
-
-          {tickIndexes.map((index) => (
-            <text key={points[index].label} x={getX(index)} y={height - 10} textAnchor="middle" fill="#9ca3af" fontSize="11">
-              {points[index].label}
-            </text>
-          ))}
-        </svg>
-      </div>
-    </div>
   );
 }
 
@@ -280,6 +191,7 @@ export default function BDTrustPage({ onSwitch }) {
   const [simulationYears, setSimulationYears] = useState(DEFAULT_SIMULATION_YEARS);
   const [payoutMode, setPayoutMode] = useState('fixed');
   const [payoutGrowthInput, setPayoutGrowthInput] = useState(DEFAULT_PAYOUT_GROWTH_RATE);
+  const [yearlyInjectionInputs, setYearlyInjectionInputs] = useState({});
 
   // Portfolio modal
   const [pModal, setPModal] = useState(null);
@@ -348,6 +260,11 @@ export default function BDTrustPage({ onSwitch }) {
   const payoutRatio    = monthlyNet > 0 ? (totalPayout / monthlyNet) * 100 : 0;
   const annualPayout   = totalPayout * 12;
   const annualNetIncome = monthlyNet * 12;
+  const annualInjectionByYear = Array.from({ length: simulationYears }, (_, index) => index + 1).reduce((acc, year) => {
+    const parsedValue = Number.parseFloat(yearlyInjectionInputs[year] ?? '');
+    acc[year] = Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue * 1e7 : 0;
+    return acc;
+  }, {});
   const parsedPayoutGrowth = Number.parseFloat(payoutGrowthInput);
   const payoutGrowthRate = payoutMode === 'growing' && Number.isFinite(parsedPayoutGrowth) && parsedPayoutGrowth > 0
     ? parsedPayoutGrowth / 100
@@ -358,12 +275,15 @@ export default function BDTrustPage({ onSwitch }) {
     trustTaxRate: TRUST_TAX_RATE,
     baseAnnualPayout: annualPayout,
     payoutGrowthRate,
+    annualInjectionByYear,
     years: simulationYears,
   });
   const finalSimulationYear = yearlySimulation[yearlySimulation.length - 1];
   const cumulativeReinvestment = yearlySimulation.reduce((sum, row) => sum + row.annualReinvestment, 0);
-  const finalPortfolioGain = (finalSimulationYear?.closingBalance || 0) - totalBDT;
-  const finalPortfolioGainPct = totalBDT > 0 ? (finalPortfolioGain / totalBDT) * 100 : 0;
+  const totalInjectedCapital = yearlySimulation.reduce((sum, row) => sum + row.injectionAmount, 0);
+  const finalPortfolioGain = (finalSimulationYear?.closingBalance || 0) - totalBDT - totalInjectedCapital;
+  const contributionBase = totalBDT + totalInjectedCapital;
+  const finalPortfolioGainPct = contributionBase > 0 ? (finalPortfolioGain / contributionBase) * 100 : 0;
 
   const postApi = async (url, body) => {
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -393,6 +313,19 @@ export default function BDTrustPage({ onSwitch }) {
       setPModal(null);
     } catch (e) { setPError(e.message); }
     finally { setSaving(false); }
+  };
+  const deletePortfolio = async (id) => {
+    if (!window.confirm('Remove this asset from the portfolio?')) return;
+    setSaving(true);
+    try { setPortfolio(await postApi(BD_EP.deletePortfolio, { id })); }
+    catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+  const updateYearlyInjection = (year, value) => {
+    setYearlyInjectionInputs((current) => ({ ...current, [year]: value }));
+  };
+  const clearYearlyInjections = () => {
+    setYearlyInjectionInputs({});
   };
 
   // ── Beneficiary group handlers ──
@@ -567,7 +500,10 @@ export default function BDTrustPage({ onSwitch }) {
                     <td className="px-4 py-3 hidden md:table-cell text-red-400">{(row.tax_rate * 100).toFixed(1)}%</td>
                     <td className="px-4 py-3 text-green-400 font-semibold">{formatCr(mNet)}</td>
                     <td className="px-4 py-3 hidden md:table-cell">
-                      <button onClick={() => openEditPortfolio(row)} className="text-blue-400 hover:text-blue-300"><FiEdit2 size={16} /></button>
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => openEditPortfolio(row)} className="text-blue-400 hover:text-blue-300"><FiEdit2 size={16} /></button>
+                        <button onClick={() => deletePortfolio(row.id)} className="text-red-500 hover:text-red-400"><FiTrash2 size={16} /></button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -595,12 +531,16 @@ export default function BDTrustPage({ onSwitch }) {
               <div>
                 <h2 className="text-lg font-semibold text-white">{simulationYears}-Year Growth Simulation</h2>
                 <p className="text-sm text-gray-400 mt-1">
-                  Uses the current asset mix, {blendedYield.toFixed(2)}% blended yield, 24% trust tax, and annual reinvestment after payouts.
+                  Each yearly injection is applied at the start of that year, then income is calculated on the updated invested base.
                 </p>
               </div>
-              <div className="text-xs text-gray-500">
-                Payout mode: {payoutMode === 'growing' ? `Growing at ${payoutGrowthRate * 100}% yearly` : 'Fixed yearly payout'}
-              </div>
+              <button
+                type="button"
+                onClick={clearYearlyInjections}
+                className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-800 text-gray-400 hover:text-white transition-colors"
+              >
+                Clear Injections
+              </button>
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-[auto_auto] gap-4 items-start">
@@ -662,33 +602,31 @@ export default function BDTrustPage({ onSwitch }) {
                 <div className="text-xl font-bold text-green-400">{formatCr(annualNetIncome)}</div>
               </div>
               <div className="rounded-lg border border-gray-700 bg-gray-800/40 p-4">
-                <div className="text-xs text-gray-400 mb-1">Cumulative Reinvestment</div>
-                <div className={`text-xl font-bold ${cumulativeReinvestment >= 0 ? 'text-blue-400' : 'text-red-400'}`}>{formatCr(cumulativeReinvestment)}</div>
+                <div className="text-xs text-gray-400 mb-1">Total Injections</div>
+                <div className="text-xl font-bold text-cyan-400">{formatCr(totalInjectedCapital)}</div>
               </div>
               <div className="rounded-lg border border-gray-700 bg-gray-800/40 p-4">
-                <div className="text-xs text-gray-400 mb-1">Final Annual Payout</div>
-                <div className="text-xl font-bold text-yellow-400">{formatCr(finalSimulationYear?.annualPayout || annualPayout)}</div>
+                <div className="text-xs text-gray-400 mb-1">Cumulative Reinvestment</div>
+                <div className={`text-xl font-bold ${cumulativeReinvestment >= 0 ? 'text-blue-400' : 'text-red-400'}`}>{formatCr(cumulativeReinvestment)}</div>
               </div>
               <div className="rounded-lg border border-gray-700 bg-gray-800/40 p-4">
                 <div className="text-xs text-gray-400 mb-1">End Portfolio</div>
                 <div className="text-xl font-bold text-white">{formatCr(finalSimulationYear?.closingBalance || 0)}</div>
                 <div className={`text-xs mt-1 ${finalPortfolioGain >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
-                  {finalPortfolioGain >= 0 ? '+' : ''}{formatCr(finalPortfolioGain)} ({finalPortfolioGainPct.toFixed(1)}%)
+                  {finalPortfolioGain >= 0 ? '+' : ''}{formatCr(finalPortfolioGain)} net growth ({finalPortfolioGainPct.toFixed(1)}%)
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="p-6 border-b border-gray-700">
-            <SimulationTrendChart rows={yearlySimulation} />
-          </div>
-
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-sm text-left text-gray-300">
+            <table className="w-full min-w-[1160px] text-sm text-left text-gray-300">
               <thead className="text-xs text-gray-400 uppercase table-header-bg">
                 <tr>
                   <th className="px-4 py-3">Year</th>
                   <th className="px-4 py-3">Opening</th>
+                  <th className="px-4 py-3">Injection</th>
+                  <th className="px-4 py-3">Invested Base</th>
                   <th className="px-4 py-3">Net Income</th>
                   <th className="px-4 py-3">Payouts</th>
                   <th className="px-4 py-3">Reinvestment</th>
@@ -700,6 +638,21 @@ export default function BDTrustPage({ onSwitch }) {
                   <tr key={row.year} className="border-b table-row-border hover:bg-gray-800/40 transition-colors">
                     <td className="px-4 py-3 font-medium text-white">Year {row.year}</td>
                     <td className="px-4 py-3 text-gray-200">{formatCr(row.openingBalance)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={yearlyInjectionInputs[row.year] ?? ''}
+                          onChange={(e) => updateYearlyInjection(row.year, e.target.value)}
+                          placeholder="0.00"
+                          className="w-24 rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white outline-none focus:ring-2 focus:ring-cyan-500"
+                        />
+                        <span className="text-xs text-gray-500">Cr</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-cyan-300">{formatCr(row.investedBalance)}</td>
                     <td className="px-4 py-3 text-green-400">{formatCr(row.annualNetIncome)}</td>
                     <td className="px-4 py-3 text-yellow-400">{formatCr(row.annualPayout)}</td>
                     <td className={`px-4 py-3 font-semibold ${row.annualReinvestment >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
