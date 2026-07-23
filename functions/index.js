@@ -77,6 +77,76 @@ const updateRahmanTrustData = async (req, res) => {
   }
 };
 
+const sanitizeSimulationPlans = (plans) => {
+  if (!plans || typeof plans !== 'object') return {};
+  return Object.entries(plans).reduce((nextPlans, [year, plan]) => {
+    if (!plan || typeof plan !== 'object') return nextPlans;
+    const filteredPlan = Object.entries(plan).reduce((nextPlan, [assetId, amount]) => {
+      const normalizedAmount = Number(amount);
+      if (Number.isFinite(normalizedAmount) && normalizedAmount > 0) {
+        nextPlan[String(assetId)] = normalizedAmount;
+      }
+      return nextPlan;
+    }, {});
+    if (Object.keys(filteredPlan).length > 0) {
+      nextPlans[String(year)] = filteredPlan;
+    }
+    return nextPlans;
+  }, {});
+};
+
+const getBDTrustSimulationConfig = async (req, res) => {
+  try {
+    const docRef = db.collection('bd_trust_config').doc('simulation');
+    const docSnap = await docRef.get();
+    if (!docSnap.exists) return res.status(200).json(null);
+    res.status(200).json(docSnap.data());
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const updateBDTrustSimulationConfig = async (req, res) => {
+  try {
+    const { simulationYears, payoutMode, payoutGrowthInput, yearlyInjectionPlans } = req.body || {};
+    await db.collection('bd_trust_config').doc('simulation').set({
+      simulationYears: Number(simulationYears) || 10,
+      payoutMode: payoutMode === 'fixed' ? 'fixed' : 'growing',
+      payoutGrowthInput: payoutGrowthInput !== undefined ? String(payoutGrowthInput) : '10',
+      yearlyInjectionPlans: sanitizeSimulationPlans(yearlyInjectionPlans),
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getRahmanTrustSimulationConfig = async (req, res) => {
+  try {
+    const docRef = db.collection('rahman_trust_config').doc('simulation');
+    const docSnap = await docRef.get();
+    if (!docSnap.exists) return res.status(200).json(null);
+    res.status(200).json(docSnap.data());
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const updateRahmanTrustSimulationConfig = async (req, res) => {
+  try {
+    const { simulationYears, yearlyInjectionPlans } = req.body || {};
+    await db.collection('rahman_trust_config').doc('simulation').set({
+      simulationYears: Number(simulationYears) || 10,
+      yearlyInjectionPlans: sanitizeSimulationPlans(yearlyInjectionPlans),
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 const addRahmanTrustEntry = async (req, res) => {
   try {
     const { pic, manager, location, value, rate, mandate } = req.body;
@@ -323,12 +393,20 @@ app.post("/updateRahmanTrustData", updateRahmanTrustData);
 app.post("/api/updateRahmanTrustData", updateRahmanTrustData);
 app.post("/addRahmanTrustEntry", addRahmanTrustEntry);
 app.post("/api/addRahmanTrustEntry", addRahmanTrustEntry);
+app.get("/getRahmanTrustSimulationConfig", getRahmanTrustSimulationConfig);
+app.get("/api/getRahmanTrustSimulationConfig", getRahmanTrustSimulationConfig);
+app.post("/updateRahmanTrustSimulationConfig", updateRahmanTrustSimulationConfig);
+app.post("/api/updateRahmanTrustSimulationConfig", updateRahmanTrustSimulationConfig);
 app.get("/getBDTrustPortfolio", getBDTrustPortfolio);
 app.get("/api/getBDTrustPortfolio", getBDTrustPortfolio);
 app.post("/addBDTrustPortfolioEntry", addBDTrustPortfolioEntry);
 app.post("/api/addBDTrustPortfolioEntry", addBDTrustPortfolioEntry);
 app.post("/updateBDTrustPortfolioEntry", updateBDTrustPortfolioEntry);
 app.post("/api/updateBDTrustPortfolioEntry", updateBDTrustPortfolioEntry);
+app.get("/getBDTrustSimulationConfig", getBDTrustSimulationConfig);
+app.get("/api/getBDTrustSimulationConfig", getBDTrustSimulationConfig);
+app.post("/updateBDTrustSimulationConfig", updateBDTrustSimulationConfig);
+app.post("/api/updateBDTrustSimulationConfig", updateBDTrustSimulationConfig);
 app.post("/deleteBDTrustPortfolioEntry", deleteBDTrustPortfolioEntry);
 app.post("/api/deleteBDTrustPortfolioEntry", deleteBDTrustPortfolioEntry);
 app.get("/getBDTrustBeneficiaries", getBDTrustBeneficiaries);

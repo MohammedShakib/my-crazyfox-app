@@ -8,6 +8,8 @@ const numCr = (bdt) => (bdt / 1e7).toFixed(2);
 
 const BD_EP = {
   portfolio:      '/api/getBDTrustPortfolio',
+  simulationConfig: '/api/getBDTrustSimulationConfig',
+  updateSimulationConfig: '/api/updateBDTrustSimulationConfig',
   addPortfolio:   '/api/addBDTrustPortfolioEntry',
   updatePortfolio:'/api/updateBDTrustPortfolioEntry',
   deletePortfolio:'/api/deleteBDTrustPortfolioEntry',
@@ -279,6 +281,7 @@ export default function BDTrustPage({ onSwitch }) {
   const [payoutMode, setPayoutMode] = useState(DEFAULT_PAYOUT_MODE);
   const [payoutGrowthInput, setPayoutGrowthInput] = useState(DEFAULT_PAYOUT_GROWTH_RATE);
   const [yearlyInjectionPlans, setYearlyInjectionPlans] = useState(() => readStoredYearlyInjectionPlans());
+  const [hasLoadedSimulationConfig, setHasLoadedSimulationConfig] = useState(false);
   const [injectionModalYear, setInjectionModalYear] = useState(null);
   const [injectionInputMode, setInjectionInputMode] = useState('manual');
   const [injectionDraft, setInjectionDraft] = useState({});
@@ -320,12 +323,31 @@ export default function BDTrustPage({ onSwitch }) {
   const fetchAll = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [pRes, bRes] = await Promise.all([fetch(BD_EP.portfolio), fetch(BD_EP.beneficiaries)]);
-      setPortfolio(await pRes.json());
-      setBeneficiaries(await bRes.json());
+      const [portfolioResult, beneficiariesResult, simulationConfigResult] = await Promise.allSettled([
+        fetch(BD_EP.portfolio),
+        fetch(BD_EP.beneficiaries),
+        fetch(BD_EP.simulationConfig),
+      ]);
+
+      if (portfolioResult.status === 'fulfilled' && portfolioResult.value.ok) {
+        setPortfolio(await portfolioResult.value.json());
+      }
+      if (beneficiariesResult.status === 'fulfilled' && beneficiariesResult.value.ok) {
+        setBeneficiaries(await beneficiariesResult.value.json());
+      }
+      if (simulationConfigResult.status === 'fulfilled' && simulationConfigResult.value.ok) {
+        const config = await simulationConfigResult.value.json();
+        if (config) {
+          setSimulationYears(Number(config.simulationYears) || DEFAULT_SIMULATION_YEARS);
+          setPayoutMode(config.payoutMode === 'fixed' ? 'fixed' : DEFAULT_PAYOUT_MODE);
+          setPayoutGrowthInput(config.payoutGrowthInput !== undefined ? String(config.payoutGrowthInput) : DEFAULT_PAYOUT_GROWTH_RATE);
+          setYearlyInjectionPlans(config.yearlyInjectionPlans && typeof config.yearlyInjectionPlans === 'object' ? config.yearlyInjectionPlans : {});
+        }
+      }
     } catch (e) {
       console.error('BD Trust fetch error:', e);
     } finally {
+      setHasLoadedSimulationConfig(true);
       setIsLoading(false);
     }
   }, []);
@@ -350,6 +372,28 @@ export default function BDTrustPage({ onSwitch }) {
   }, [yearlyInjectionPlans]);
 
   // Computed — 24% flat AOP trust tax (Bangladesh tax law for Association of Persons)
+  useEffect(() => {
+    if (!hasLoadedSimulationConfig) return undefined;
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        await fetch(BD_EP.updateSimulationConfig, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            simulationYears,
+            payoutMode,
+            payoutGrowthInput,
+            yearlyInjectionPlans,
+          }),
+        });
+      } catch (error) {
+        console.error('Unable to persist BD Trust simulation config:', error);
+      }
+    }, 400);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [hasLoadedSimulationConfig, simulationYears, payoutMode, payoutGrowthInput, yearlyInjectionPlans]);
+
   const TRUST_TAX_RATE = 0.24;
   const totalBDT        = portfolio.reduce((s, r) => s + r.amount_bdt, 0);
   const monthlyGross    = portfolio.reduce((s, r) => s + (r.amount_bdt * r.rate / 12), 0);

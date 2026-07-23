@@ -57,6 +57,8 @@ function MandateChip({ mandate, rate }) {
 
 const RAHMAN_ENDPOINTS = {
     fetch: '/api/getRahmanTrustData',
+    simulationConfig: '/api/getRahmanTrustSimulationConfig',
+    updateSimulationConfig: '/api/updateRahmanTrustSimulationConfig',
     update: '/api/updateRahmanTrustData',
     add: '/api/addRahmanTrustEntry',
 };
@@ -225,6 +227,7 @@ export default function RahmanTrustPage() {
     const [errorMessage, setErrorMessage] = useState(null);
     const [simulationYears, setSimulationYears] = useState(DEFAULT_RAHMAN_SIMULATION_YEARS);
     const [yearlyInjectionPlans, setYearlyInjectionPlans] = useState(() => readStoredRahmanInjectionPlans());
+    const [hasLoadedSimulationConfig, setHasLoadedSimulationConfig] = useState(false);
     const [injectionModalYear, setInjectionModalYear] = useState(null);
     const [injectionDraft, setInjectionDraft] = useState({});
     const [injectionError, setInjectionError] = useState(null);
@@ -254,18 +257,32 @@ export default function RahmanTrustPage() {
 
         const loadRahmanTrustData = async () => {
             try {
-                const response = await fetch(RAHMAN_ENDPOINTS.fetch);
-                if (!response.ok) {
-                    throw new Error(`Failed to load Rahman Trust data: ${response.status}`);
+                const [portfolioResult, simulationConfigResult] = await Promise.allSettled([
+                    fetch(RAHMAN_ENDPOINTS.fetch),
+                    fetch(RAHMAN_ENDPOINTS.simulationConfig),
+                ]);
+
+                if (portfolioResult.status === 'fulfilled' && portfolioResult.value.ok) {
+                    const payload = await portfolioResult.value.json();
+                    if (isMounted && Array.isArray(payload)) {
+                        setPortfolioData(payload.map(mapRahmanFromApi));
+                    }
                 }
-                const payload = await response.json();
-                if (isMounted && Array.isArray(payload)) {
-                    setPortfolioData(payload.map(mapRahmanFromApi));
+
+                if (simulationConfigResult.status === 'fulfilled' && simulationConfigResult.value.ok) {
+                    const config = await simulationConfigResult.value.json();
+                    if (isMounted && config) {
+                        setSimulationYears(Number(config.simulationYears) || DEFAULT_RAHMAN_SIMULATION_YEARS);
+                        setYearlyInjectionPlans(config.yearlyInjectionPlans && typeof config.yearlyInjectionPlans === 'object' ? config.yearlyInjectionPlans : {});
+                    }
                 }
             } catch (error) {
                 console.error('Unable to fetch Rahman Trust data from API', error);
             } finally {
-                if (isMounted) setIsLoading(false);
+                if (isMounted) {
+                    setHasLoadedSimulationConfig(true);
+                    setIsLoading(false);
+                }
             }
         };
 
@@ -322,6 +339,26 @@ export default function RahmanTrustPage() {
     }, [yearlyInjectionPlans]);
 
     // --- এডিট/সেভ ফাংশন ---
+    useEffect(() => {
+        if (!hasLoadedSimulationConfig) return undefined;
+        const timeoutId = window.setTimeout(async () => {
+            try {
+                await fetch(RAHMAN_ENDPOINTS.updateSimulationConfig, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        simulationYears,
+                        yearlyInjectionPlans,
+                    }),
+                });
+            } catch (error) {
+                console.error('Unable to persist Rahman simulation config:', error);
+            }
+        }, 400);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [hasLoadedSimulationConfig, simulationYears, yearlyInjectionPlans]);
+
     const resetEditState = () => {
         setEditRowId(null);
         setIsAddMode(false);
