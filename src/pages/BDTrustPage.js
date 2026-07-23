@@ -39,7 +39,8 @@ const CHART_COLORS = {
 };
 const SIMULATION_YEAR_OPTIONS = [5, 10, 20];
 const DEFAULT_SIMULATION_YEARS = 10;
-const DEFAULT_PAYOUT_GROWTH_RATE = '6';
+const DEFAULT_PAYOUT_MODE = 'growing';
+const DEFAULT_PAYOUT_GROWTH_RATE = '10';
 const BD_TRUST_INJECTION_PLANS_STORAGE_KEY = 'bd-trust-yearly-injection-plans';
 const DEFAULT_INJECTION_PERCENT_BY_CATEGORY = {
   bond: '50',
@@ -127,6 +128,7 @@ const buildYearlySimulation = ({ portfolio, trustTaxRate, baseAnnualPayout, payo
     const annualGrossIncome = assetBreakdown.reduce((sum, asset) => sum + (asset.investedAmount * asset.rate), 0);
     const annualTax = annualGrossIncome * trustTaxRate;
     const annualNetIncome = annualGrossIncome - annualTax;
+    const monthlyNetProfit = annualNetIncome / 12;
     const projectedReinvestment = annualNetIncome - annualPayout;
     const projectedClosingBalance = investedBalance + projectedReinvestment;
     const closingBalance = Math.max(0, projectedClosingBalance);
@@ -146,6 +148,7 @@ const buildYearlySimulation = ({ portfolio, trustTaxRate, baseAnnualPayout, payo
       annualGrossIncome,
       annualTax,
       annualNetIncome,
+      monthlyNetProfit,
       annualPayout,
       annualReinvestment,
       closingBalance,
@@ -273,7 +276,7 @@ export default function BDTrustPage({ onSwitch }) {
   const [saving, setSaving] = useState(false);
   const [expandedBenId, setExpandedBenId] = useState(null);
   const [simulationYears, setSimulationYears] = useState(DEFAULT_SIMULATION_YEARS);
-  const [payoutMode, setPayoutMode] = useState('fixed');
+  const [payoutMode, setPayoutMode] = useState(DEFAULT_PAYOUT_MODE);
   const [payoutGrowthInput, setPayoutGrowthInput] = useState(DEFAULT_PAYOUT_GROWTH_RATE);
   const [yearlyInjectionPlans, setYearlyInjectionPlans] = useState(() => readStoredYearlyInjectionPlans());
   const [injectionModalYear, setInjectionModalYear] = useState(null);
@@ -837,13 +840,14 @@ export default function BDTrustPage({ onSwitch }) {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1160px] text-sm text-left text-gray-300">
+            <table className="w-full min-w-[1300px] text-sm text-left text-gray-300">
               <thead className="text-xs text-gray-400 uppercase table-header-bg">
                 <tr>
                   <th className="px-4 py-3">Year</th>
                   <th className="px-4 py-3">Opening</th>
                   <th className="px-4 py-3">Injection</th>
                   <th className="px-4 py-3">Net Income</th>
+                  <th className="px-4 py-3">Monthly Net Profit</th>
                   <th className="px-4 py-3">Payouts</th>
                   <th className="px-4 py-3">Reinvestment</th>
                   <th className="px-4 py-3">Closing</th>
@@ -857,6 +861,7 @@ export default function BDTrustPage({ onSwitch }) {
                     <td className="px-4 py-3 text-gray-200">{formatCr(row.openingBalance)}</td>
                     <td className="px-4 py-3 text-cyan-300">{formatCr(row.injectionAmount)}</td>
                     <td className="px-4 py-3 text-green-400">{formatCr(row.annualNetIncome)}</td>
+                    <td className="px-4 py-3 text-emerald-300">{formatCr(row.monthlyNetProfit)}</td>
                     <td className="px-4 py-3 text-yellow-400">{formatCr(row.annualPayout)}</td>
                     <td className={`px-4 py-3 font-semibold ${row.annualReinvestment >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
                       {formatCr(row.annualReinvestment)}
