@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { FiEdit2, FiSave, FiXCircle, FiGrid, FiCopy } from 'react-icons/fi';
 import LoadingScreen from '../components/LoadingScreen';
 import BDTrustPage from './BDTrustPage';
@@ -60,6 +60,8 @@ const RAHMAN_ENDPOINTS = {
     update: '/api/updateRahmanTrustData',
     add: '/api/addRahmanTrustEntry',
 };
+const TRUST_VIEW_STORAGE_KEY = 'rahman-trust-active-view';
+const normalizeTrustView = (value) => (value === 'bangladesh' ? 'bangladesh' : 'international');
 
 const mapRahmanFromApi = (doc) => ({
     id: Number(doc.id),
@@ -107,6 +109,7 @@ function formatMillions(num) {
 // const structureDiagram = ... (এই অংশটি ডিলিট করা হয়েছে)
 
 export default function RahmanTrustPage() {
+    const [searchParams, setSearchParams] = useSearchParams();
     
     // --- State তৈরি করা ---
     const [portfolioData, setPortfolioData] = useState([]);
@@ -123,9 +126,27 @@ export default function RahmanTrustPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [activeTrust, setActiveTrust] = useState('international');
     const [errorMessage, setErrorMessage] = useState(null);
     const inputRef = useRef(null);
+    const storedTrustView = typeof window !== 'undefined'
+        ? normalizeTrustView(window.localStorage.getItem(TRUST_VIEW_STORAGE_KEY))
+        : 'international';
+    const activeTrust = searchParams.has('view')
+        ? normalizeTrustView(searchParams.get('view'))
+        : storedTrustView;
+
+    const switchTrust = (nextTrust) => {
+        const normalizedTrust = normalizeTrustView(nextTrust);
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem(TRUST_VIEW_STORAGE_KEY, normalizedTrust);
+        }
+
+        setSearchParams((currentParams) => {
+            const nextParams = new URLSearchParams(currentParams);
+            nextParams.set('view', normalizedTrust);
+            return nextParams;
+        });
+    };
 
     useEffect(() => {
         let isMounted = true;
@@ -167,6 +188,20 @@ export default function RahmanTrustPage() {
         window.addEventListener('resize', updateIsMobile);
         return () => window.removeEventListener('resize', updateIsMobile);
     }, []);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem(TRUST_VIEW_STORAGE_KEY, activeTrust);
+        }
+
+        if (searchParams.get('view') !== activeTrust) {
+            setSearchParams((currentParams) => {
+                const nextParams = new URLSearchParams(currentParams);
+                nextParams.set('view', activeTrust);
+                return nextParams;
+            }, { replace: true });
+        }
+    }, [activeTrust, searchParams, setSearchParams]);
 
     // --- এডিট/সেভ ফাংশন ---
     const resetEditState = () => {
@@ -312,7 +347,7 @@ export default function RahmanTrustPage() {
     // --- নতুন: মাসিক ইনকাম গণনা ---
     const monthlyIncome = totalProjectedGain / 12;
 
-    if (activeTrust === 'bangladesh') return <BDTrustPage onSwitch={setActiveTrust} />;
+    if (activeTrust === 'bangladesh') return <BDTrustPage onSwitch={switchTrust} />;
 
     if (isLoading) return <LoadingScreen title="Loading trust portfolio..." />;
 
@@ -333,13 +368,13 @@ export default function RahmanTrustPage() {
                     <div className="flex flex-col items-end gap-3">
                         <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1">
                             <button
-                                onClick={() => setActiveTrust('international')}
+                                onClick={() => switchTrust('international')}
                                 className="px-3 py-1.5 text-sm rounded-md font-medium bg-blue-600 text-white cursor-default"
                             >
                                 🌍 International
                             </button>
                             <button
-                                onClick={() => setActiveTrust('bangladesh')}
+                                onClick={() => switchTrust('bangladesh')}
                                 className="px-3 py-1.5 text-sm rounded-md font-medium text-gray-400 hover:text-white transition-colors"
                             >
                                 🇧🇩 Bangladesh
