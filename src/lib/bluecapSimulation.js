@@ -1,7 +1,9 @@
 import defaultScenario from '../data/bluecapDefaultScenario.json';
 
 export const BLUECAP_TIMELINE = [1, 2, 3, 4];
+export const BLUECAP_START_CALENDAR_YEAR = 2022;
 export const BLUEBIRDS_OPERATIONAL_PROJECTION_END_YEAR = 2030;
+export const BLUECAP_STANDARD_PROJECTION_GROWTH_RATE_PERCENT = 10;
 
 const BLUEBIRDS_OPERATIONAL_BASE = {
   id: 'bluebirds',
@@ -208,6 +210,49 @@ export function buildBlueBirdsOperationalProjection(endYear = BLUEBIRDS_OPERATIO
     entityId: id,
     heading: `Operational projection through ${endYear}`,
     description: 'Egg capacity model using fixed sell price, production cost, and 10% annual growth after 2025.',
+    yearlyPerformance,
+    totalNetProfitCrore: roundCrore(
+      yearlyPerformance.reduce((sum, entry) => sum + entry.profitCrore, 0)
+    ),
+  };
+}
+
+export function buildBlueCapEntityProjection(
+  entity,
+  endYear = BLUEBIRDS_OPERATIONAL_PROJECTION_END_YEAR,
+  annualGrowthRatePercent = BLUECAP_STANDARD_PROJECTION_GROWTH_RATE_PERCENT
+) {
+  const launchCalendarYear = BLUECAP_START_CALENDAR_YEAR + entity.launchYear - 1;
+  const yearlyPerformance = [];
+  let lastRevenueCrore = 0;
+
+  for (let calendarYear = launchCalendarYear; calendarYear <= endYear; calendarYear += 1) {
+    let revenueCrore = 0;
+
+    if (calendarYear <= BLUECAP_START_CALENDAR_YEAR + BLUECAP_TIMELINE.length - 1) {
+      const timelineYear = calendarYear - BLUECAP_START_CALENDAR_YEAR + 1;
+      revenueCrore = calculateBlueCapEntityYear(entity, timelineYear).revenueCrore;
+    } else {
+      revenueCrore = roundCrore(lastRevenueCrore * (1 + annualGrowthRatePercent / 100));
+    }
+
+    lastRevenueCrore = revenueCrore;
+    const profitCrore = roundCrore(revenueCrore * (entity.netMarginPercent / 100));
+
+    yearlyPerformance.push({
+      ...entity,
+      year: calendarYear,
+      calendarYear: String(calendarYear),
+      revenueCrore,
+      profitCrore,
+      netMarginPercent: roundCrore(entity.netMarginPercent),
+    });
+  }
+
+  return {
+    entityId: entity.id,
+    heading: `Projected breakdown through ${endYear}`,
+    description: `Uses the scenario ramp through 2025, then applies ${annualGrowthRatePercent}% annual revenue growth with a fixed margin.`,
     yearlyPerformance,
     totalNetProfitCrore: roundCrore(
       yearlyPerformance.reduce((sum, entry) => sum + entry.profitCrore, 0)

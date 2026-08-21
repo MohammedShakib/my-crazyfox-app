@@ -1,5 +1,6 @@
 import defaultScenario from '../data/bluecapDefaultScenario.json';
 import {
+  buildBlueCapEntityProjection,
   buildBlueBirdsOperationalProjection,
   calculateBlueCapEntityYear,
   normalizeBlueCapScenario,
@@ -86,6 +87,26 @@ describe('bluecapSimulation', () => {
     });
 
     expect(projection.totalNetProfitCrore).toBe(5846.11);
+  });
+
+  test('extends standard entity projections through 2030 with annual growth after 2025', () => {
+    const atech = scenario.entities.find((entity) => entity.id === 'atech');
+    const projection = buildBlueCapEntityProjection(atech);
+    const yearMap = new Map(projection.yearlyPerformance.map((entry) => [entry.year, entry]));
+
+    expect(yearMap.get(2025)).toMatchObject({
+      revenueCrore: 150,
+      profitCrore: 60,
+      netMarginPercent: 40,
+    });
+
+    expect(yearMap.get(2030)).toMatchObject({
+      revenueCrore: 241.58,
+      profitCrore: 96.63,
+      netMarginPercent: 40,
+    });
+
+    expect(projection.totalNetProfitCrore).toBe(552.94);
   });
 
   test('preserves the prompt-defined dependency providers and covered entities', () => {

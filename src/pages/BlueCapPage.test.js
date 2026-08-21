@@ -81,6 +81,32 @@ describe('BlueCapPage', () => {
     expect(panelQueries.queryByText('2022')).not.toBeInTheDocument();
   });
 
+  test('extends standard entity projections to 2030 as well', async () => {
+    fetchMock.mockImplementation(() => createJsonResponse(defaultScenario));
+
+    render(
+      <MemoryRouter>
+        <BlueCapPage />
+      </MemoryRouter>
+    );
+
+    expect((await screen.findAllByText('2022-2030')).length).toBeGreaterThan(0);
+
+    const [atechButton] = await screen.findAllByRole('button', {
+      name: /Toggle Atech yearly breakdown/i,
+    });
+    await userEvent.click(atechButton);
+
+    const entityPanel = document.getElementById('bluecap-entity-atech');
+    expect(entityPanel).not.toBeNull();
+
+    const panelQueries = within(entityPanel);
+    expect(panelQueries.getAllByText('2026').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('2030').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('241.58 Cr BDT').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('96.63 Cr BDT').length).toBeGreaterThan(0);
+  });
+
   test('recalculates immediately and persists edited entity targets', async () => {
     const updatedScenario = {
       ...defaultScenario,

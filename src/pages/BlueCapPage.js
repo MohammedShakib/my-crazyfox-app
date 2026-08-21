@@ -4,6 +4,7 @@ import { FiArrowLeft, FiChevronDown, FiChevronUp, FiDatabase, FiRefreshCw, FiSav
 import LoadingScreen from '../components/LoadingScreen';
 import {
   buildBlueCapSavePayload,
+  buildBlueCapEntityProjection,
   buildBlueBirdsOperationalProjection,
   createBlueCapScenarioSnapshot,
   normalizeBlueCapScenario,
@@ -23,8 +24,6 @@ const KPI_ACCENT = {
   capital: 'bc-kpi-capital',
   'most-profitable': 'bc-kpi-entity',
 };
-
-const roundCrore = (value) => Number(Number(value || 0).toFixed(2));
 
 const formatCrore = (value) =>
   `${new Intl.NumberFormat('en-US', {
@@ -445,30 +444,18 @@ export default function BlueCapPage() {
         return;
       }
 
-      const yearlyPerformance = simulation.yearlyBreakdown
-        .map((yearRow) => yearRow.entities.find((entry) => entry.id === entity.id))
-        .filter((entry) => entry && entry.isActive)
-        .map((entry) => ({
-          ...entry,
-          calendarYear: formatCalendarYear(entry.year),
-        }));
+      const projection = buildBlueCapEntityProjection(entity);
 
       breakdownMap.set(entity.id, {
-        entityId: entity.id,
-        heading: 'Scenario-based breakdown through 2025.',
-        description: `Cumulative net profit covers ${formatCalendarYear(entity.launchYear)} through ${finalYearLabel}.`,
-        yearlyPerformance,
-        projectionWindowLabel: `${formatCalendarYear(entity.launchYear)}-${finalYearLabel}`,
-        totalNetProfitLabel: `Cumulative net profit from ${formatCalendarYear(entity.launchYear)} through ${finalYearLabel}.`,
+        ...projection,
+        projectionWindowLabel: `${formatCalendarYear(entity.launchYear)}-2030`,
+        totalNetProfitLabel: `Cumulative net profit from ${formatCalendarYear(entity.launchYear)} through 2030.`,
         showScenarioInputs: true,
-        totalNetProfitCrore: roundCrore(
-          yearlyPerformance.reduce((sum, entry) => sum + entry.profitCrore, 0)
-        ),
       });
     });
 
     return breakdownMap;
-  }, [finalYearLabel, scenario.entities, simulation.yearlyBreakdown]);
+  }, [scenario.entities]);
 
   const summaryCards = [
     {
