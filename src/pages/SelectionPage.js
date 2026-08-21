@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FiBarChart2, FiShield, FiClock, FiCalendar } from 'react-icons/fi';
+import { FiBarChart2, FiShield, FiClock, FiCalendar, FiDatabase } from 'react-icons/fi';
 
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -106,6 +106,32 @@ export default function SelectionPage() {
                 <div className="flex flex-wrap gap-2">
                   <span className="chip chip-blue">📊 20 Years</span>
                   <span className="chip chip-gray">Financial Model</span>
+                </div>
+              </Link>
+            </motion.div>
+
+            {/* BlueCAP Card */}
+            <motion.div
+              variants={itemVariants}
+              whileHover={{ scale: 1.025, transition: { type: 'spring', stiffness: 400, damping: 20 } }}
+              whileTap={{ scale: 0.98 }}
+              className="glow-card-wrapper glow-blue"
+            >
+              <Link to="/bluecap" className="glow-card-inner block text-left">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="icon-orb icon-orb-blue">
+                    <FiDatabase className="w-5 h-5 text-cyan-400" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-white text-base leading-snug">BlueCAP</div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      Run the 4-year Blue Ecosystem capital simulator.
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="chip chip-blue">4 Years</span>
+                  <span className="chip chip-gray">Ecosystem Model</span>
                 </div>
               </Link>
             </motion.div>

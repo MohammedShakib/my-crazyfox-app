@@ -1,0 +1,121 @@
+{
+  "slug": "bluecap-default",
+  "config": {
+    "initialCapitalCrore": 500,
+    "annualCapitalInjectionCrore": 500,
+    "regulatoryConstraintPercent": 0,
+    "reinvestmentRatePercent": 100
+  },
+  "entities": [
+    {
+      "id": "atech",
+      "name": "Atech",
+      "sector": "B2B SaaS & Ecosystem Tech Builder",
+      "launchYear": 1,
+      "year4TargetRevenueCrore": 150,
+      "netMarginPercent": 40
+    },
+    {
+      "id": "hyundai-bangladesh",
+      "name": "Hyundai Bangladesh",
+      "sector": "Electronics & General Retail",
+      "launchYear": 1,
+      "year4TargetRevenueCrore": 800,
+      "netMarginPercent": 6
+    },
+    {
+      "id": "bluesky",
+      "name": "BlueSky",
+      "sector": "Smart Real Estate",
+      "launchYear": 2,
+      "year4TargetRevenueCrore": 150,
+      "netMarginPercent": 60
+    },
+    {
+      "id": "bluebirds",
+      "name": "BlueBirds",
+      "sector": "Agro & Poultry Farm",
+      "launchYear": 2,
+      "year4TargetRevenueCrore": 400,
+      "netMarginPercent": 40
+    },
+    {
+      "id": "itra",
+      "name": "Itra",
+      "sector": "Niche Premium Textile",
+      "launchYear": 2,
+      "year4TargetRevenueCrore": 100,
+      "netMarginPercent": 25
+    },
+    {
+      "id": "bluecash",
+      "name": "BlueCash",
+      "sector": "FinTech & Payment Gateway",
+      "launchYear": 3,
+      "year4TargetRevenueCrore": 45,
+      "netMarginPercent": 40
+    },
+    {
+      "id": "blueexpress",
+      "name": "BlueExpress",
+      "sector": "Commercial Transit",
+      "launchYear": 3,
+      "year4TargetRevenueCrore": 200,
+      "netMarginPercent": 31
+    },
+    {
+      "id": "bluetex",
+      "name": "BlueTEX",
+      "sector": "RMG Export & Vertical Textile",
+      "launchYear": 4,
+      "year4TargetRevenueCrore": 500,
+      "netMarginPercent": 12
+    },
+    {
+      "id": "bluetaxi",
+      "name": "BlueTaxi",
+      "sector": "EV Ride-Sharing",
+      "launchYear": 4,
+      "year4TargetRevenueCrore": 30,
+      "netMarginPercent": 15
+    }
+  ],
+  "dependencies": [
+    {
+      "id": "atech-tech-stack",
+      "name": "Atech Tech Stack",
+      "category": "tech",
+      "description": "Atech builds the software layer for BlueSky, BlueTaxi, and BlueCash.",
+      "sourceEntityIds": ["atech"],
+      "targetEntityIds": ["bluesky", "bluetaxi", "bluecash"],
+      "exposureEntityIds": ["bluesky", "bluetaxi", "bluecash"]
+    },
+    {
+      "id": "delivery-loop",
+      "name": "BlueExpress + BlueTaxi Delivery Loop",
+      "category": "logistics",
+      "description": "BlueExpress and BlueTaxi handle product deliveries for Hyundai Bangladesh and Itra.",
+      "sourceEntityIds": ["blueexpress", "bluetaxi"],
+      "targetEntityIds": ["hyundai-bangladesh", "itra"],
+      "exposureEntityIds": ["hyundai-bangladesh", "itra"]
+    },
+    {
+      "id": "bluecash-payments",
+      "name": "BlueCash Payment Routing",
+      "category": "payments",
+      "description": "Consumer transactions route through BlueCash across retail, rent, agro, and ticketing flows.",
+      "sourceEntityIds": ["bluecash"],
+      "targetEntityIds": ["hyundai-bangladesh", "itra", "bluesky", "bluebirds", "blueexpress"],
+      "exposureEntityIds": ["hyundai-bangladesh", "itra", "bluesky", "bluebirds", "blueexpress"]
+    },
+    {
+      "id": "bluetex-supply-chain",
+      "name": "BlueTEX Supply Chain",
+      "category": "supply-chain",
+      "description": "BlueTEX provides upstream raw fabric support to Itra.",
+      "sourceEntityIds": ["bluetex"],
+      "targetEntityIds": ["itra"],
+      "exposureEntityIds": ["itra"]
+    }
+  ]
+}
