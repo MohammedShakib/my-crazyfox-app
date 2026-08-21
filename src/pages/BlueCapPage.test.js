@@ -36,10 +36,13 @@ describe('BlueCapPage', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/getBlueCapData');
     expect(screen.getByLabelText('Initial Capital')).toHaveValue(500);
     expect(screen.getByText('2025 Total Revenue')).toBeInTheDocument();
+    expect(screen.getAllByText('2025 Revenue Target').length).toBeGreaterThan(0);
     expect(screen.getAllByText('2,375.00 Cr BDT').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Yearly Ecosystem Rollups')).not.toBeInTheDocument();
+    expect(screen.queryByText('Yearly Entity Revenue and Profit')).not.toBeInTheDocument();
   });
 
-  test('shows yearly entity activity in collapsible calendar-year panels with active entities only', async () => {
+  test('shows per-entity yearly breakdown from launch year onward', async () => {
     fetchMock.mockImplementation(() => createJsonResponse(defaultScenario));
 
     render(
@@ -48,23 +51,29 @@ describe('BlueCapPage', () => {
       </MemoryRouter>
     );
 
-    const activityButton = await screen.findByRole('button', { name: /2022 Activity/i });
-    expect(activityButton).toHaveAttribute('aria-expanded', 'false');
+    const [blueBirdsButton] = await screen.findAllByRole('button', {
+      name: /Toggle BlueBirds yearly breakdown/i,
+    });
+    expect(blueBirdsButton).toHaveAttribute('aria-expanded', 'false');
 
-    await userEvent.click(activityButton);
+    await userEvent.click(blueBirdsButton);
 
-    expect(activityButton).toHaveAttribute('aria-expanded', 'true');
+    expect(blueBirdsButton).toHaveAttribute('aria-expanded', 'true');
 
-    const yearPanel = document.getElementById('bluecap-activity-1');
-    expect(yearPanel).not.toBeNull();
+    const entityPanel = document.getElementById('bluecap-entity-bluebirds');
+    expect(entityPanel).not.toBeNull();
 
-    const panelQueries = within(yearPanel);
-    expect(panelQueries.getAllByText('Atech').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('Hyundai Bangladesh').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('37.50 Cr BDT').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('200.00 Cr BDT').length).toBeGreaterThan(0);
-    expect(panelQueries.queryByText('BlueSky')).not.toBeInTheDocument();
-    expect(panelQueries.queryByText('0.00 Cr BDT')).not.toBeInTheDocument();
+    const panelQueries = within(entityPanel);
+    expect(panelQueries.getAllByText('2023').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('2024').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('2025').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('133.33 Cr BDT').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('266.67 Cr BDT').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('400.00 Cr BDT').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('53.33 Cr BDT').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('106.67 Cr BDT').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('160.00 Cr BDT').length).toBeGreaterThan(0);
+    expect(panelQueries.queryByText('2022')).not.toBeInTheDocument();
   });
 
   test('recalculates immediately and persists edited entity targets', async () => {
@@ -87,7 +96,7 @@ describe('BlueCapPage', () => {
       </MemoryRouter>
     );
 
-    const revenueInput = await screen.findByLabelText('Year 4 revenue target for Atech');
+    const revenueInput = await screen.findByLabelText('2025 revenue target for Atech');
     await userEvent.clear(revenueInput);
     await userEvent.type(revenueInput, '200');
 
