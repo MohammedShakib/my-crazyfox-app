@@ -3,6 +3,7 @@ const functions = require("firebase-functions");
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
+const defaultBlueCapScenario = require("./bluecapDefaultScenario.json");
 
 // Initialize the app and database
 admin.initializeApp();
@@ -11,6 +12,126 @@ const db = admin.firestore();
 const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json());
+
+const cloneBlueCapScenario = (scenario = defaultBlueCapScenario) =>
+  JSON.parse(JSON.stringify(scenario));
+
+const toFiniteNumber = (value, fallback) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : fallback;
+};
+
+const normalizeBlueCapDependency = (dependency, fallbackDependency) => ({
+  id:
+    typeof dependency?.id === "string" && dependency.id.trim()
+      ? dependency.id
+      : fallbackDependency.id,
+  name:
+    typeof dependency?.name === "string" && dependency.name.trim()
+      ? dependency.name
+      : fallbackDependency.name,
+  category:
+    typeof dependency?.category === "string" && dependency.category.trim()
+      ? dependency.category
+      : fallbackDependency.category,
+  description:
+    typeof dependency?.description === "string" && dependency.description.trim()
+      ? dependency.description
+      : fallbackDependency.description,
+  sourceEntityIds:
+    Array.isArray(dependency?.sourceEntityIds) && dependency.sourceEntityIds.length > 0
+      ? dependency.sourceEntityIds
+      : fallbackDependency.sourceEntityIds,
+  targetEntityIds:
+    Array.isArray(dependency?.targetEntityIds) && dependency.targetEntityIds.length > 0
+      ? dependency.targetEntityIds
+      : fallbackDependency.targetEntityIds,
+  exposureEntityIds:
+    Array.isArray(dependency?.exposureEntityIds) && dependency.exposureEntityIds.length > 0
+      ? dependency.exposureEntityIds
+      : fallbackDependency.exposureEntityIds,
+});
+
+const normalizeBlueCapScenario = (inputScenario) => {
+  const baseScenario = cloneBlueCapScenario();
+  const sourceScenario = inputScenario && typeof inputScenario === "object" ? inputScenario : {};
+  const sourceConfig =
+    sourceScenario.config && typeof sourceScenario.config === "object"
+      ? sourceScenario.config
+      : {};
+  const sourceEntities = Array.isArray(sourceScenario.entities) ? sourceScenario.entities : [];
+  const sourceEntitiesById = new Map(
+    sourceEntities
+      .filter((entity) => entity && typeof entity.id === "string")
+      .map((entity) => [entity.id, entity]),
+  );
+  const sourceDependencies = Array.isArray(sourceScenario.dependencies) ?
+    sourceScenario.dependencies : [];
+  const sourceDependenciesById = new Map(
+    sourceDependencies
+      .filter((dependency) => dependency && typeof dependency.id === "string")
+      .map((dependency) => [dependency.id, dependency]),
+  );
+
+  return {
+    slug:
+      typeof sourceScenario.slug === "string" && sourceScenario.slug.trim()
+        ? sourceScenario.slug.trim()
+        : baseScenario.slug,
+    config: {
+      initialCapitalCrore: toFiniteNumber(
+        sourceConfig.initialCapitalCrore,
+        baseScenario.config.initialCapitalCrore,
+      ),
+      annualCapitalInjectionCrore: toFiniteNumber(
+        sourceConfig.annualCapitalInjectionCrore,
+        baseScenario.config.annualCapitalInjectionCrore,
+      ),
+      regulatoryConstraintPercent: toFiniteNumber(
+        sourceConfig.regulatoryConstraintPercent,
+        baseScenario.config.regulatoryConstraintPercent,
+      ),
+      reinvestmentRatePercent: toFiniteNumber(
+        sourceConfig.reinvestmentRatePercent,
+        baseScenario.config.reinvestmentRatePercent,
+      ),
+    },
+    entities: baseScenario.entities.map((baseEntity) => {
+      const sourceEntity = sourceEntitiesById.get(baseEntity.id) || {};
+      return {
+        ...baseEntity,
+        year4TargetRevenueCrore: toFiniteNumber(
+          sourceEntity.year4TargetRevenueCrore,
+          baseEntity.year4TargetRevenueCrore,
+        ),
+        netMarginPercent: toFiniteNumber(
+          sourceEntity.netMarginPercent,
+          baseEntity.netMarginPercent,
+        ),
+      };
+    }),
+    dependencies: baseScenario.dependencies.map((baseDependency) =>
+      normalizeBlueCapDependency(sourceDependenciesById.get(baseDependency.id), baseDependency),
+    ),
+  };
+};
+
+const ensureBlueCapScenario = async () => {
+  const docRef = db.collection("bluecap_scenarios").doc(defaultBlueCapScenario.slug);
+  const docSnap = await docRef.get();
+
+  if (!docSnap.exists) {
+    const seededScenario = normalizeBlueCapScenario(defaultBlueCapScenario);
+    await docRef.set({
+      ...seededScenario,
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    const seededSnap = await docRef.get();
+    return seededSnap.data();
+  }
+
+  return normalizeBlueCapScenario(docSnap.data());
+};
 
 const getCrazyFoxData = async (req, res) => {
   try {
@@ -72,6 +193,36 @@ const updateRahmanTrustData = async (req, res) => {
     const snapshot = await db.collection("rahman_trust_data").orderBy("id", "asc").get();
     const data = snapshot.docs.map((doc) => doc.data());
     res.status(200).json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getBlueCapData = async (req, res) => {
+  try {
+    const scenario = await ensureBlueCapScenario();
+    res.status(200).json(scenario);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const updateBlueCapData = async (req, res) => {
+  const scenarioPayload = req.body;
+  if (!scenarioPayload || typeof scenarioPayload !== "object" || Array.isArray(scenarioPayload)) {
+    return res.status(400).send("Invalid BlueCAP payload.");
+  }
+
+  try {
+    const normalizedScenario = normalizeBlueCapScenario(scenarioPayload);
+    const docRef = db.collection("bluecap_scenarios").doc(normalizedScenario.slug);
+    await docRef.set({
+      ...normalizedScenario,
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    const savedSnap = await docRef.get();
+    res.status(200).json(normalizeBlueCapScenario(savedSnap.data()));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -385,10 +536,14 @@ const addBDTrustDeposit = async (req, res) => {
 // Expose handlers on both direct and /api-prefixed paths so Hosting rewrites reach them
 app.get("/getCrazyFoxData", getCrazyFoxData);
 app.get("/api/getCrazyFoxData", getCrazyFoxData);
+app.get("/getBlueCapData", getBlueCapData);
+app.get("/api/getBlueCapData", getBlueCapData);
 app.get("/getRahmanTrustData", getRahmanTrustData);
 app.get("/api/getRahmanTrustData", getRahmanTrustData);
 app.post("/updateCrazyFoxData", updateCrazyFoxData);
 app.post("/api/updateCrazyFoxData", updateCrazyFoxData);
+app.post("/updateBlueCapData", updateBlueCapData);
+app.post("/api/updateBlueCapData", updateBlueCapData);
 app.post("/updateRahmanTrustData", updateRahmanTrustData);
 app.post("/api/updateRahmanTrustData", updateRahmanTrustData);
 app.post("/addRahmanTrustEntry", addRahmanTrustEntry);
