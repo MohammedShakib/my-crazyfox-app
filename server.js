@@ -78,6 +78,28 @@ const toFiniteNumber = (value, fallback) => {
   return Number.isFinite(numericValue) ? numericValue : fallback;
 };
 
+const BLUECAP_CALENDAR_YEARS = Array.from({ length: 9 }, (_, index) => 2022 + index);
+
+const createDefaultInjectionSchedule = (annualCapitalInjectionCrore) =>
+  BLUECAP_CALENDAR_YEARS.reduce((schedule, calendarYear) => {
+    schedule[String(calendarYear)] = Number(Number(annualCapitalInjectionCrore || 0).toFixed(2));
+    return schedule;
+  }, {});
+
+const normalizeInjectionSchedule = (sourceSchedule, fallbackAnnualCapitalInjectionCrore) => {
+  const fallbackSchedule = createDefaultInjectionSchedule(fallbackAnnualCapitalInjectionCrore);
+
+  return BLUECAP_CALENDAR_YEARS.reduce((schedule, calendarYear) => {
+    const calendarYearKey = String(calendarYear);
+    schedule[calendarYearKey] = Number(
+      Number(
+        toFiniteNumber(sourceSchedule?.[calendarYearKey], fallbackSchedule[calendarYearKey])
+      ).toFixed(2)
+    );
+    return schedule;
+  }, {});
+};
+
 const normalizeBlueCapDependency = (dependency, fallbackDependency) => ({
   id:
     typeof dependency?.id === 'string' && dependency.id.trim()
@@ -125,6 +147,10 @@ const normalizeBlueCapScenario = (inputScenario) => {
       .filter((dependency) => dependency && typeof dependency.id === 'string')
       .map((dependency) => [dependency.id, dependency])
   );
+  const annualCapitalInjectionCrore = toFiniteNumber(
+    sourceConfig.annualCapitalInjectionCrore,
+    baseScenario.config.annualCapitalInjectionCrore
+  );
 
   return {
     slug:
@@ -136,9 +162,10 @@ const normalizeBlueCapScenario = (inputScenario) => {
         sourceConfig.initialCapitalCrore,
         baseScenario.config.initialCapitalCrore
       ),
-      annualCapitalInjectionCrore: toFiniteNumber(
-        sourceConfig.annualCapitalInjectionCrore,
-        baseScenario.config.annualCapitalInjectionCrore
+      annualCapitalInjectionCrore,
+      yearlyCapitalInjectionsCrore: normalizeInjectionSchedule(
+        sourceConfig.yearlyCapitalInjectionsCrore,
+        annualCapitalInjectionCrore
       ),
       regulatoryConstraintPercent: toFiniteNumber(
         sourceConfig.regulatoryConstraintPercent,

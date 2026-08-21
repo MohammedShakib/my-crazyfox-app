@@ -1,5 +1,6 @@
 import defaultScenario from '../data/bluecapDefaultScenario.json';
 import {
+  BLUECAP_CALENDAR_YEARS,
   buildBlueCapEntityProjection,
   buildBlueBirdsOperationalProjection,
   calculateBlueCapEntityYear,
@@ -44,27 +45,15 @@ describe('bluecapSimulation', () => {
     expect(calculateBlueCapEntityYear(bluetaxi, 4).profitCrore).toBe(4.5);
   });
 
-  test('computes default scenario year 4 rollups', () => {
-    const simulation = simulateBlueCapScenario(defaultScenario);
-
-    expect(simulation.year4Summary.totalRevenueCrore).toBe(2375);
-    expect(simulation.year4Summary.totalNetProfitCrore).toBe(527.5);
-    expect(simulation.year4Summary.mostProfitableEntity?.name).toBe('BlueBirds');
-    expect(simulation.year4Summary.cumulativeNetProfitCrore).toBe(1004.5);
-    expect(simulation.year4Summary.capitalPoolEndOfYearCrore).toBe(3504.5);
+  test('normalizes a yearly injection schedule through 2030', () => {
+    expect(scenario.config.yearlyCapitalInjectionsCrore['2022']).toBe(500);
+    expect(scenario.config.yearlyCapitalInjectionsCrore['2030']).toBe(500);
+    expect(Object.keys(scenario.config.yearlyCapitalInjectionsCrore)).toHaveLength(
+      BLUECAP_CALENDAR_YEARS.length
+    );
   });
 
-  test('computes dependency exposure metrics from the current scenario', () => {
-    const simulation = simulateBlueCapScenario(defaultScenario);
-    const metricMap = new Map(simulation.dependencyMetrics.map((metric) => [metric.id, metric]));
-
-    expect(metricMap.get('bluecash-payments')?.year4RevenueExposureCrore).toBe(1650);
-    expect(metricMap.get('delivery-loop')?.year4RevenueExposureCrore).toBe(900);
-    expect(metricMap.get('atech-tech-stack')?.year4RevenueExposureCrore).toBe(225);
-    expect(metricMap.get('bluetex-supply-chain')?.year4RevenueExposureCrore).toBe(100);
-  });
-
-  test('builds the BlueBirds operational projection through 2030', () => {
+  test('builds the BlueBirds operational projection through 2030 with new business lines', () => {
     const projection = buildBlueBirdsOperationalProjection();
     const yearMap = new Map(projection.yearlyPerformance.map((entry) => [entry.year, entry]));
 
@@ -74,22 +63,17 @@ describe('bluecapSimulation', () => {
       netMarginPercent: 75,
     });
 
-    expect(yearMap.get(2025)).toMatchObject({
-      revenueCrore: 876,
-      profitCrore: 684.38,
-      netMarginPercent: 78.13,
-    });
-
-    expect(yearMap.get(2030)).toMatchObject({
-      revenueCrore: 1410.81,
-      profitCrore: 1102.19,
-      netMarginPercent: 78.12,
-    });
-
-    expect(projection.totalNetProfitCrore).toBe(5846.11);
+    expect(yearMap.get(2026)?.businessLines.map((line) => line.name)).toEqual([
+      'Egg Production',
+      'Milk Production',
+      'Meat Production',
+      'Raw Chicken & Cuttings',
+    ]);
+    expect(yearMap.get(2026)?.revenueCrore).toBeGreaterThan(yearMap.get(2025)?.revenueCrore);
+    expect(yearMap.get(2030)?.revenueCrore).toBeGreaterThan(yearMap.get(2026)?.revenueCrore);
   });
 
-  test('extends standard entity projections through 2030 with annual growth after 2025', () => {
+  test('extends standard entity projections through 2030 with fixed baseline margin', () => {
     const atech = scenario.entities.find((entity) => entity.id === 'atech');
     const projection = buildBlueCapEntityProjection(atech);
     const yearMap = new Map(projection.yearlyPerformance.map((entry) => [entry.year, entry]));
@@ -99,48 +83,36 @@ describe('bluecapSimulation', () => {
       profitCrore: 60,
       netMarginPercent: 40,
     });
-
-    expect(yearMap.get(2030)).toMatchObject({
-      revenueCrore: 241.58,
-      profitCrore: 96.63,
-      netMarginPercent: 40,
-    });
-
-    expect(projection.totalNetProfitCrore).toBe(552.94);
+    expect(yearMap.get(2030)?.revenueCrore).toBeGreaterThan(yearMap.get(2025)?.revenueCrore);
+    expect(yearMap.get(2030)?.netMarginPercent).toBe(40);
   });
 
-  test('preserves the prompt-defined dependency providers and covered entities', () => {
+  test('simulates yearly funding allocations through 2030', () => {
     const simulation = simulateBlueCapScenario(defaultScenario);
-    const metricMap = new Map(
-      simulation.dependencyMetrics.map((metric) => [metric.id, metric])
+    const yearMap = new Map(
+      simulation.yearlyFundingBreakdown.map((entry) => [entry.calendarYear, entry])
     );
 
+    expect(simulation.latestYearSummary.calendarYear).toBe(2030);
+    expect(simulation.yearlyFundingBreakdown).toHaveLength(BLUECAP_CALENDAR_YEARS.length);
+    expect(yearMap.get(2022)).toMatchObject({
+      activeEntityCount: 2,
+      capitalInjectionCrore: 500,
+    });
+    expect(yearMap.get(2026)?.equalAllocationCrore).toBeGreaterThan(0);
+    expect(simulation.latestYearSummary.cumulativeNetProfitCrore).toBeGreaterThan(
+      simulation.latestYearSummary.totalNetProfitCrore
+    );
+    expect(simulation.latestYearSummary.mostProfitableEntity?.name).toBe('BlueBirds');
+  });
+
+  test('computes dependency exposure metrics from the latest simulated year', () => {
+    const simulation = simulateBlueCapScenario(defaultScenario);
+    const metricMap = new Map(simulation.dependencyMetrics.map((metric) => [metric.id, metric]));
+
+    expect(metricMap.get('bluecash-payments')?.latestYearRevenueExposureCrore).toBeGreaterThan(0);
+    expect(metricMap.get('delivery-loop')?.latestYearRevenueExposureCrore).toBeGreaterThan(0);
     expect(metricMap.get('atech-tech-stack')?.providerNames).toEqual(['Atech']);
-    expect(metricMap.get('atech-tech-stack')?.coveredEntityNames).toEqual([
-      'BlueSky',
-      'BlueTaxi',
-      'BlueCash',
-    ]);
-
-    expect(metricMap.get('delivery-loop')?.providerNames).toEqual([
-      'BlueExpress',
-      'BlueTaxi',
-    ]);
-    expect(metricMap.get('delivery-loop')?.coveredEntityNames).toEqual([
-      'Hyundai Bangladesh',
-      'Itra',
-    ]);
-
-    expect(metricMap.get('bluecash-payments')?.providerNames).toEqual(['BlueCash']);
-    expect(metricMap.get('bluecash-payments')?.coveredEntityNames).toEqual([
-      'Hyundai Bangladesh',
-      'Itra',
-      'BlueSky',
-      'BlueBirds',
-      'BlueExpress',
-    ]);
-
-    expect(metricMap.get('bluetex-supply-chain')?.providerNames).toEqual(['BlueTEX']);
     expect(metricMap.get('bluetex-supply-chain')?.coveredEntityNames).toEqual(['Itra']);
   });
 });

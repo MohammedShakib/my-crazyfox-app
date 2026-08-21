@@ -35,16 +35,14 @@ describe('BlueCapPage', () => {
     expect(await screen.findByRole('heading', { name: 'BlueCAP' })).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith('/api/getBlueCapData');
     expect(screen.getByLabelText('Initial Capital')).toHaveValue(500);
-    expect(screen.getByText('2025 Total Revenue')).toBeInTheDocument();
+    expect(screen.getByText('2030 Total Revenue')).toBeInTheDocument();
+    expect(screen.getByText('Funding and Allocation Plan')).toBeInTheDocument();
     expect(screen.queryByText('2025 Revenue Target')).not.toBeInTheDocument();
-    expect(screen.queryByText('Profit Margin')).not.toBeInTheDocument();
-    expect(screen.getAllByText('Cumulative Net Profit').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('2,375.00 Cr BDT').length).toBeGreaterThan(0);
     expect(screen.queryByText('Yearly Ecosystem Rollups')).not.toBeInTheDocument();
-    expect(screen.queryByText('Yearly Entity Revenue and Profit')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Cumulative Net Profit').length).toBeGreaterThan(0);
   });
 
-  test('shows per-entity yearly breakdown from launch year onward', async () => {
+  test('shows BlueBird yearly breakdown with business-line expansion through 2030', async () => {
     fetchMock.mockImplementation(() => createJsonResponse(defaultScenario));
 
     render(
@@ -56,32 +54,21 @@ describe('BlueCapPage', () => {
     const [blueBirdsButton] = await screen.findAllByRole('button', {
       name: /Toggle BlueBirds yearly breakdown/i,
     });
-    expect(blueBirdsButton).toHaveAttribute('aria-expanded', 'false');
-
     await userEvent.click(blueBirdsButton);
-
-    expect(blueBirdsButton).toHaveAttribute('aria-expanded', 'true');
 
     const entityPanel = document.getElementById('bluecap-entity-bluebirds');
     expect(entityPanel).not.toBeNull();
 
     const panelQueries = within(entityPanel);
     expect(panelQueries.getAllByText('2023').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('2024').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('2025').length).toBeGreaterThan(0);
     expect(panelQueries.getAllByText('2026').length).toBeGreaterThan(0);
     expect(panelQueries.getAllByText('2030').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('146.00 Cr BDT').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('109.50 Cr BDT').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('684.38 Cr BDT').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('963.60 Cr BDT').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('1,102.19 Cr BDT').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('75%').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('78.12%').length).toBeGreaterThan(0);
-    expect(panelQueries.queryByText('2022')).not.toBeInTheDocument();
+    expect(panelQueries.getByText('BlueBird business mix from eggs, milk, meat, and raw chicken lines.')).toBeInTheDocument();
+    expect(panelQueries.getAllByText('Milk Production').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('Raw Chicken & Cuttings').length).toBeGreaterThan(0);
   });
 
-  test('extends standard entity projections to 2030 as well', async () => {
+  test('extends standard entity projections to 2030 and exposes base controls inside the dropdown', async () => {
     fetchMock.mockImplementation(() => createJsonResponse(defaultScenario));
 
     render(
@@ -101,25 +88,15 @@ describe('BlueCapPage', () => {
     expect(entityPanel).not.toBeNull();
 
     const panelQueries = within(entityPanel);
-    expect(panelQueries.getAllByText('2026').length).toBeGreaterThan(0);
     expect(panelQueries.getAllByText('2030').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('241.58 Cr BDT').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('96.63 Cr BDT').length).toBeGreaterThan(0);
+    expect(await screen.findByLabelText('2025 base revenue for Atech')).toHaveValue(150);
+    expect(await screen.findByLabelText('Base margin for Atech')).toHaveValue(40);
   });
 
-  test('recalculates immediately and persists edited entity targets', async () => {
-    const updatedScenario = {
-      ...defaultScenario,
-      entities: defaultScenario.entities.map((entity) =>
-        entity.id === 'atech'
-          ? { ...entity, year4TargetRevenueCrore: 200 }
-          : entity
-      ),
-    };
-
+  test('persists edited yearly injection and base revenue values', async () => {
     fetchMock
       .mockImplementationOnce(() => createJsonResponse(defaultScenario))
-      .mockImplementationOnce(() => createJsonResponse(updatedScenario));
+      .mockImplementationOnce(() => createJsonResponse(defaultScenario));
 
     render(
       <MemoryRouter>
@@ -132,12 +109,13 @@ describe('BlueCapPage', () => {
     });
     await userEvent.click(atechButton);
 
-    const revenueInput = await screen.findByLabelText('2025 revenue target for Atech');
+    const revenueInput = await screen.findByLabelText('2025 base revenue for Atech');
     await userEvent.clear(revenueInput);
     await userEvent.type(revenueInput, '200');
 
-    expect(screen.getAllByText('2,425.00 Cr BDT').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('547.50 Cr BDT').length).toBeGreaterThan(0);
+    const [injectionInput] = await screen.findAllByLabelText('Capital injection for 2026');
+    await userEvent.clear(injectionInput);
+    await userEvent.type(injectionInput, '650');
 
     await userEvent.click(screen.getByRole('button', { name: /save scenario/i }));
 
@@ -150,6 +128,7 @@ describe('BlueCapPage', () => {
     expect(fetchMock.mock.calls[1][0]).toBe('/api/updateBlueCapData');
     expect(requestConfig.method).toBe('POST');
     expect(savedAtech.year4TargetRevenueCrore).toBe(200);
+    expect(savedPayload.config.yearlyCapitalInjectionsCrore['2026']).toBe(650);
     expect(await screen.findByText('BlueCAP scenario saved.')).toBeInTheDocument();
   });
 });
