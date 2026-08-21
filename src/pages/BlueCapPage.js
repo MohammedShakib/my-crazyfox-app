@@ -4,6 +4,7 @@ import { FiArrowLeft, FiChevronDown, FiChevronUp, FiDatabase, FiRefreshCw, FiSav
 import LoadingScreen from '../components/LoadingScreen';
 import {
   buildBlueCapSavePayload,
+  buildBlueBirdsOperationalProjection,
   createBlueCapScenarioSnapshot,
   normalizeBlueCapScenario,
   simulateBlueCapScenario,
@@ -62,9 +63,14 @@ function SectionHeader({ title, description, children }) {
 function EntityTimelineDetails({ details }) {
   return (
     <div>
-      <div style={{ fontSize: 12, color: 'var(--bc-text-muted)', marginBottom: 14 }}>
-        Active-year breakdown from launch onward.
+      <div style={{ fontSize: 12, color: 'var(--bc-text-muted)', marginBottom: 4 }}>
+        {details.heading || 'Active-year breakdown from launch onward.'}
       </div>
+      {details.description ? (
+        <div style={{ fontSize: 12, color: 'var(--bc-text-muted)', marginBottom: 14 }}>
+          {details.description}
+        </div>
+      ) : null}
 
       <div className="bc-desktop-only bc-table-wrap" style={{ overflowX: 'auto' }}>
         <table className="bc-table" style={{ minWidth: 620 }}>
@@ -427,6 +433,11 @@ export default function BlueCapPage() {
     const breakdownMap = new Map();
 
     scenario.entities.forEach((entity) => {
+      if (entity.id === 'bluebirds') {
+        breakdownMap.set(entity.id, buildBlueBirdsOperationalProjection());
+        return;
+      }
+
       const yearlyPerformance = simulation.yearlyBreakdown
         .map((yearRow) => yearRow.entities.find((entry) => entry.id === entity.id))
         .filter((entry) => entry && entry.isActive)
@@ -437,6 +448,7 @@ export default function BlueCapPage() {
 
       breakdownMap.set(entity.id, {
         entityId: entity.id,
+        heading: 'Scenario-based breakdown from launch onward.',
         yearlyPerformance,
         totalNetProfitCrore: roundCrore(
           yearlyPerformance.reduce((sum, entry) => sum + entry.profitCrore, 0)

@@ -1,5 +1,6 @@
 import defaultScenario from '../data/bluecapDefaultScenario.json';
 import {
+  buildBlueBirdsOperationalProjection,
   calculateBlueCapEntityYear,
   normalizeBlueCapScenario,
   simulateBlueCapScenario,
@@ -60,6 +61,31 @@ describe('bluecapSimulation', () => {
     expect(metricMap.get('delivery-loop')?.year4RevenueExposureCrore).toBe(900);
     expect(metricMap.get('atech-tech-stack')?.year4RevenueExposureCrore).toBe(225);
     expect(metricMap.get('bluetex-supply-chain')?.year4RevenueExposureCrore).toBe(100);
+  });
+
+  test('builds the BlueBirds operational projection through 2030', () => {
+    const projection = buildBlueBirdsOperationalProjection();
+    const yearMap = new Map(projection.yearlyPerformance.map((entry) => [entry.year, entry]));
+
+    expect(yearMap.get(2023)).toMatchObject({
+      revenueCrore: 146,
+      profitCrore: 109.5,
+      netMarginPercent: 75,
+    });
+
+    expect(yearMap.get(2025)).toMatchObject({
+      revenueCrore: 876,
+      profitCrore: 684.38,
+      netMarginPercent: 78.13,
+    });
+
+    expect(yearMap.get(2030)).toMatchObject({
+      revenueCrore: 1410.81,
+      profitCrore: 1102.19,
+      netMarginPercent: 78.12,
+    });
+
+    expect(projection.totalNetProfitCrore).toBe(5846.11);
   });
 
   test('preserves the prompt-defined dependency providers and covered entities', () => {

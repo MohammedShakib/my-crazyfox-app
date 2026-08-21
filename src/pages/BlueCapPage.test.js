@@ -67,12 +67,15 @@ describe('BlueCapPage', () => {
     expect(panelQueries.getAllByText('2023').length).toBeGreaterThan(0);
     expect(panelQueries.getAllByText('2024').length).toBeGreaterThan(0);
     expect(panelQueries.getAllByText('2025').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('133.33 Cr BDT').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('266.67 Cr BDT').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('400.00 Cr BDT').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('53.33 Cr BDT').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('106.67 Cr BDT').length).toBeGreaterThan(0);
-    expect(panelQueries.getAllByText('160.00 Cr BDT').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('2026').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('2030').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('146.00 Cr BDT').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('109.50 Cr BDT').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('684.38 Cr BDT').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('963.60 Cr BDT').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('1,102.19 Cr BDT').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('75%').length).toBeGreaterThan(0);
+    expect(panelQueries.getAllByText('78.12%').length).toBeGreaterThan(0);
     expect(panelQueries.queryByText('2022')).not.toBeInTheDocument();
   });
 

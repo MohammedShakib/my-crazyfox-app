@@ -1,6 +1,24 @@
 import defaultScenario from '../data/bluecapDefaultScenario.json';
 
 export const BLUECAP_TIMELINE = [1, 2, 3, 4];
+export const BLUEBIRDS_OPERATIONAL_PROJECTION_END_YEAR = 2030;
+
+const BLUEBIRDS_OPERATIONAL_BASE = {
+  id: 'bluebirds',
+  startYear: 2023,
+  annualGrowthRatePercent: 10,
+  sellPriceTakaPerEgg: 8,
+  productionCostByYear: {
+    2023: 2,
+    2024: 1.75,
+    2025: 1.75,
+  },
+  dailyCapacityByYear: {
+    2023: 500000,
+    2024: 2000000,
+    2025: 3000000,
+  },
+};
 
 const roundCrore = (value) => Number(Number(value || 0).toFixed(2));
 
@@ -138,6 +156,62 @@ export function calculateBlueCapEntityYear(entity, year) {
     revenueCrore,
     profitCrore,
     isActive: year >= entity.launchYear,
+  };
+}
+
+export function buildBlueBirdsOperationalProjection(endYear = BLUEBIRDS_OPERATIONAL_PROJECTION_END_YEAR) {
+  const {
+    id,
+    startYear,
+    annualGrowthRatePercent,
+    sellPriceTakaPerEgg,
+    productionCostByYear,
+    dailyCapacityByYear,
+  } = BLUEBIRDS_OPERATIONAL_BASE;
+
+  let lastKnownDailyCapacity = dailyCapacityByYear[2025];
+  const yearlyPerformance = [];
+
+  for (let calendarYear = startYear; calendarYear <= endYear; calendarYear += 1) {
+    const configuredCapacity = dailyCapacityByYear[calendarYear];
+    const dailyCapacityEggs =
+      typeof configuredCapacity === 'number'
+        ? configuredCapacity
+        : Math.round(lastKnownDailyCapacity * (1 + annualGrowthRatePercent / 100));
+
+    lastKnownDailyCapacity = dailyCapacityEggs;
+
+    const productionCostTakaPerEgg =
+      productionCostByYear[calendarYear] ?? productionCostByYear[2025];
+    const yearlyVolumeEggs = dailyCapacityEggs * 365;
+    const revenueCrore = roundCrore((yearlyVolumeEggs * sellPriceTakaPerEgg) / 10000000);
+    const profitCrore = roundCrore(
+      (yearlyVolumeEggs * (sellPriceTakaPerEgg - productionCostTakaPerEgg)) / 10000000
+    );
+    const netMarginPercent = roundCrore(
+      revenueCrore === 0 ? 0 : (profitCrore / revenueCrore) * 100
+    );
+
+    yearlyPerformance.push({
+      entityId: id,
+      year: calendarYear,
+      calendarYear: String(calendarYear),
+      dailyCapacityEggs,
+      yearlyVolumeEggs,
+      revenueCrore,
+      profitCrore,
+      netMarginPercent,
+    });
+  }
+
+  return {
+    entityId: id,
+    heading: `Operational projection through ${endYear}`,
+    description: 'Egg capacity model using fixed sell price, production cost, and 10% annual growth after 2025.',
+    yearlyPerformance,
+    totalNetProfitCrore: roundCrore(
+      yearlyPerformance.reduce((sum, entry) => sum + entry.profitCrore, 0)
+    ),
   };
 }
 
