@@ -189,6 +189,407 @@
         }
         .glow-button-wrapper:hover .glow-button-inner { background-color: #1f2937; }
     </style>
+
+    <!-- BlueCAP Dashboard Design System -->
+    <style>
+      /* ── Color tokens ── */
+      :root {
+        --bc-bg: #080c14;
+        --bc-surface: #0d1219;
+        --bc-surface-alt: #111820;
+        --bc-surface-elevated: #161d27;
+        --bc-border: rgba(148,163,184,0.10);
+        --bc-border-strong: rgba(148,163,184,0.18);
+        --bc-text-primary: #e2e8f0;
+        --bc-text-secondary: #7e8fa6;
+        --bc-text-muted: #52627a;
+        --bc-accent: #38bdf8;
+        --bc-accent-hover: #56ccf9;
+        --bc-positive: #2dd4bf;
+        --bc-positive-muted: rgba(45,212,191,0.12);
+        --bc-blue: #60a5fa;
+        --bc-cyan: #22d3ee;
+        --bc-danger: #f87171;
+        --bc-warning: #fbbf24;
+      }
+
+      /* ── Page shell ── */
+      .bc-page {
+        background-color: var(--bc-bg);
+        color: var(--bc-text-primary);
+        min-height: 100vh;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* ── Card ── */
+      .bc-card {
+        background-color: var(--bc-surface);
+        border: 1px solid var(--bc-border);
+        border-radius: 14px;
+        padding: 20px 24px;
+      }
+      @media (max-width: 767px) {
+        .bc-card { padding: 16px; }
+      }
+
+      /* ── Section header ── */
+      .bc-section-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+      }
+      @media (max-width: 639px) {
+        .bc-section-header {
+          flex-direction: column;
+          gap: 12px;
+        }
+      }
+
+      /* ── Buttons ── */
+      .bc-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 500;
+        height: 40px;
+        padding: 0 18px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 150ms ease;
+        white-space: nowrap;
+        outline: none;
+        border: none;
+        gap: 8px;
+      }
+      .bc-btn:focus-visible {
+        box-shadow: 0 0 0 2px var(--bc-bg), 0 0 0 4px var(--bc-accent);
+      }
+      .bc-btn-primary {
+        background-color: #2563eb;
+        color: #fff;
+      }
+      .bc-btn-primary:hover { background-color: #3b82f6; }
+      .bc-btn-primary:active { background-color: #1d4ed8; }
+      .bc-btn-primary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .bc-btn-secondary {
+        background-color: transparent;
+        color: var(--bc-text-secondary);
+        border: 1px solid var(--bc-border-strong);
+      }
+      .bc-btn-secondary:hover {
+        background-color: var(--bc-surface-elevated);
+        color: var(--bc-text-primary);
+        border-color: rgba(148,163,184,0.25);
+      }
+      .bc-btn-secondary:active {
+        background-color: var(--bc-surface-alt);
+      }
+
+      /* ── Inputs ── */
+      .bc-input {
+        width: 100%;
+        height: 42px;
+        padding: 0 14px;
+        background-color: var(--bc-bg);
+        border: 1px solid var(--bc-border-strong);
+        border-radius: 8px;
+        color: var(--bc-text-primary);
+        font-size: 14px;
+        font-family: 'Inter', sans-serif;
+        outline: none;
+        transition: border-color 150ms ease, box-shadow 150ms ease;
+      }
+      .bc-input:hover {
+        border-color: rgba(148,163,184,0.30);
+      }
+      .bc-input:focus {
+        border-color: var(--bc-accent);
+        box-shadow: 0 0 0 3px rgba(56,189,248,0.15);
+      }
+      .bc-input-table {
+        height: 36px;
+        padding: 0 10px;
+        font-size: 13px;
+        background-color: rgba(8,12,20,0.7);
+        border-color: var(--bc-border);
+        text-align: right;
+      }
+      .bc-input-table:focus {
+        border-color: var(--bc-accent);
+        box-shadow: 0 0 0 2px rgba(56,189,248,0.12);
+      }
+
+      /* Remove browser number input spinners */
+      .bc-input[type="number"]::-webkit-outer-spin-button,
+      .bc-input[type="number"]::-webkit-inner-spin-button,
+      .bc-input-table[type="number"]::-webkit-outer-spin-button,
+      .bc-input-table[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+      .bc-input[type="number"],
+      .bc-input-table[type="number"] {
+        -moz-appearance: textfield;
+      }
+
+      /* ── Label ── */
+      .bc-label {
+        display: block;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--bc-text-secondary);
+        margin-bottom: 8px;
+        letter-spacing: 0.02em;
+      }
+
+      /* ── KPI Card ── */
+      .bc-kpi {
+        background-color: var(--bc-surface);
+        border: 1px solid var(--bc-border);
+        border-radius: 14px;
+        padding: 20px;
+        border-left: 3px solid var(--bc-border);
+        transition: box-shadow 200ms ease, border-color 200ms ease;
+      }
+      .bc-kpi:hover {
+        box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+      }
+      .bc-kpi-revenue { border-left-color: var(--bc-text-secondary); }
+      .bc-kpi-profit  { border-left-color: var(--bc-positive); }
+      .bc-kpi-capital  { border-left-color: var(--bc-cyan); }
+      .bc-kpi-entity  { border-left-color: var(--bc-text-primary); }
+      .bc-kpi-label {
+        font-size: 12px;
+        color: var(--bc-text-muted);
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        margin-bottom: 8px;
+      }
+      .bc-kpi-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--bc-text-primary);
+        line-height: 1.2;
+      }
+      .bc-kpi-helper {
+        font-size: 11px;
+        color: var(--bc-text-muted);
+        margin-top: 10px;
+        line-height: 1.5;
+      }
+
+      /* ── Tables ── */
+      .bc-table {
+        width: 100%;
+        text-align: left;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      .bc-table thead {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+      }
+      .bc-table th {
+        background-color: var(--bc-surface-alt);
+        color: var(--bc-text-muted);
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 12px 16px;
+        white-space: nowrap;
+        border-bottom: 1px solid var(--bc-border-strong);
+      }
+      .bc-table th:first-child { padding-left: 24px; }
+      .bc-table th:last-child  { padding-right: 24px; }
+      .bc-table td {
+        padding: 14px 16px;
+        color: var(--bc-text-primary);
+        border-bottom: 1px solid var(--bc-border);
+        vertical-align: middle;
+      }
+      .bc-table td:first-child { padding-left: 24px; }
+      .bc-table td:last-child  { padding-right: 24px; }
+      .bc-table tbody tr {
+        transition: background-color 120ms ease;
+      }
+      .bc-table tbody tr:hover {
+        background-color: rgba(148,163,184,0.04);
+      }
+      .bc-table tbody tr:last-child td {
+        border-bottom: none;
+      }
+      .bc-table .text-right { text-align: right; }
+      .bc-table .text-center { text-align: center; }
+
+      /* Year group separator row */
+      .bc-year-separator td {
+        background-color: var(--bc-surface-alt);
+        font-weight: 600;
+        font-size: 12px;
+        color: var(--bc-accent);
+        letter-spacing: 0.04em;
+        padding: 10px 24px;
+        border-bottom: 1px solid var(--bc-border-strong);
+      }
+      .bc-table tbody tr.bc-year-separator:hover {
+        background-color: var(--bc-surface-alt);
+      }
+
+      /* ── Year Filter Tabs ── */
+      .bc-tabs {
+        display: flex;
+        gap: 4px;
+        background-color: var(--bc-bg);
+        border: 1px solid var(--bc-border);
+        border-radius: 10px;
+        padding: 4px;
+        flex-wrap: wrap;
+      }
+      .bc-tab {
+        padding: 7px 16px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--bc-text-secondary);
+        border-radius: 7px;
+        cursor: pointer;
+        border: none;
+        background: transparent;
+        transition: all 150ms ease;
+        white-space: nowrap;
+      }
+      .bc-tab:hover {
+        color: var(--bc-text-primary);
+        background-color: var(--bc-surface-elevated);
+      }
+      .bc-tab-active {
+        background-color: var(--bc-surface-elevated);
+        color: var(--bc-text-primary);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      }
+
+      /* ── Chip ── */
+      .bc-chip {
+        display: inline-flex;
+        align-items: center;
+        font-size: 11px;
+        font-weight: 500;
+        padding: 3px 10px;
+        border-radius: 6px;
+        background-color: rgba(148,163,184,0.08);
+        color: var(--bc-text-secondary);
+        margin: 2px 3px 2px 0;
+        white-space: nowrap;
+      }
+
+      /* ── Mobile Data Card ── */
+      .bc-mobile-card {
+        background-color: var(--bc-surface);
+        border: 1px solid var(--bc-border);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 10px;
+      }
+      .bc-mobile-card-header {
+        margin-bottom: 14px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--bc-border);
+      }
+      .bc-mobile-card-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 0;
+        font-size: 13px;
+        gap: 12px;
+      }
+      .bc-mobile-card-label {
+        color: var(--bc-text-muted);
+        font-size: 12px;
+        flex-shrink: 0;
+      }
+      .bc-mobile-card-value {
+        color: var(--bc-text-primary);
+        font-weight: 500;
+        text-align: right;
+      }
+
+      /* ── Messages ── */
+      .bc-msg-error {
+        border: 1px solid rgba(248,113,113,0.25);
+        background-color: rgba(248,113,113,0.08);
+        color: #fca5a5;
+        border-radius: 8px;
+        padding: 12px 16px;
+        font-size: 13px;
+        margin-top: 16px;
+      }
+      .bc-msg-success {
+        border: 1px solid rgba(45,212,191,0.25);
+        background-color: rgba(45,212,191,0.08);
+        color: #99f6e4;
+        border-radius: 8px;
+        padding: 12px 16px;
+        font-size: 13px;
+        margin-top: 16px;
+      }
+
+      /* ── Badge ── */
+      .bc-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 5px 12px;
+        border-radius: 8px;
+        background-color: rgba(34,211,238,0.08);
+        color: var(--bc-cyan);
+        border: 1px solid rgba(34,211,238,0.15);
+      }
+
+      /* ── Misc utilities ── */
+      .bc-text-positive { color: var(--bc-positive); }
+      .bc-text-accent { color: var(--bc-accent); }
+      .bc-text-cyan { color: var(--bc-cyan); }
+      .bc-text-blue { color: var(--bc-blue); }
+      .bc-text-muted { color: var(--bc-text-muted); }
+      .bc-text-secondary { color: var(--bc-text-secondary); }
+
+      /* ── Scrollbar styling for table containers ── */
+      .bc-table-wrap::-webkit-scrollbar {
+        height: 6px;
+      }
+      .bc-table-wrap::-webkit-scrollbar-track {
+        background: var(--bc-bg);
+      }
+      .bc-table-wrap::-webkit-scrollbar-thumb {
+        background: rgba(148,163,184,0.15);
+        border-radius: 3px;
+      }
+      .bc-table-wrap::-webkit-scrollbar-thumb:hover {
+        background: rgba(148,163,184,0.25);
+      }
+
+      /* ── Responsive: Mobile-first table hiding ── */
+      @media (max-width: 767px) {
+        .bc-desktop-only { display: none !important; }
+        .bc-kpi-value { font-size: 22px; }
+        .bc-btn { height: 44px; font-size: 14px; }
+        .bc-tab { padding: 8px 14px; font-size: 13px; }
+      }
+      @media (min-width: 768px) {
+        .bc-mobile-only { display: none !important; }
+      }
+    </style>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
