@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiDatabase, FiRefreshCw, FiSave, FiArrowLeft } from 'react-icons/fi';
+import { FiArrowLeft, FiDatabase, FiRefreshCw, FiSave } from 'react-icons/fi';
 import LoadingScreen from '../components/LoadingScreen';
 import {
   buildBlueCapSavePayload,
@@ -12,6 +12,15 @@ import {
 const BLUECAP_ENDPOINTS = {
   fetch: '/api/getBlueCapData',
   update: '/api/updateBlueCapData',
+};
+
+const BLUECAP_START_YEAR = 2022;
+
+const KPI_ACCENT = {
+  revenue: 'bc-kpi-revenue',
+  profit: 'bc-kpi-profit',
+  capital: 'bc-kpi-capital',
+  'most-profitable': 'bc-kpi-entity',
 };
 
 const formatCrore = (value) =>
@@ -26,24 +35,13 @@ const formatPercent = (value) =>
     maximumFractionDigits: 2,
   }).format(value)}%`;
 
-/* ── Year filter options ── */
-const YEAR_FILTERS = [
-  { key: 'all', label: 'All' },
-  { key: 1, label: 'Year 1' },
-  { key: 2, label: 'Year 2' },
-  { key: 3, label: 'Year 3' },
-  { key: 4, label: 'Year 4' },
-];
+const getCalendarYear = (timelineYear) => BLUECAP_START_YEAR + timelineYear - 1;
 
-/* ── KPI accent mapping ── */
-const KPI_ACCENT = {
-  revenue: 'bc-kpi-revenue',
-  profit: 'bc-kpi-profit',
-  capital: 'bc-kpi-capital',
-  'most-profitable': 'bc-kpi-entity',
-};
+const formatCalendarYear = (timelineYear) => String(getCalendarYear(timelineYear));
 
-/* ── Section Header ── */
+const formatActiveEntityLabel = (count) =>
+  `${count} active ${count === 1 ? 'entity' : 'entities'}`;
+
 function SectionHeader({ title, description, children }) {
   return (
     <div className="bc-section-header">
@@ -51,31 +49,139 @@ function SectionHeader({ title, description, children }) {
         <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--bc-text-primary)', margin: 0 }}>
           {title}
         </h2>
-        {description && (
+        {description ? (
           <p style={{ fontSize: 13, color: 'var(--bc-text-secondary)', marginTop: 6, lineHeight: 1.5 }}>
             {description}
           </p>
-        )}
+        ) : null}
       </div>
-      {children && <div className="flex items-center gap-3 flex-wrap flex-shrink-0">{children}</div>}
+      {children ? <div className="flex items-center gap-3 flex-wrap flex-shrink-0">{children}</div> : null}
     </div>
   );
 }
 
-/* ── Year Filter Tab Bar ── */
-function YearTabs({ value, onChange }) {
+function YearActivityAccordion({ yearRow }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const calendarYear = formatCalendarYear(yearRow.year);
+  const activeEntities = yearRow.entities.filter((entity) => entity.isActive);
+  const panelId = `bluecap-activity-${yearRow.year}`;
+
   return (
-    <div className="bc-tabs">
-      {YEAR_FILTERS.map((filter) => (
-        <button
-          key={filter.key}
-          type="button"
-          className={`bc-tab ${value === filter.key ? 'bc-tab-active' : ''}`}
-          onClick={() => onChange(filter.key)}
+    <div style={{ borderTop: '1px solid var(--bc-border)' }}>
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        aria-controls={panelId}
+        onClick={() => setIsOpen((current) => !current)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          padding: '18px 24px',
+          background: 'transparent',
+          border: 0,
+          color: 'inherit',
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--bc-text-primary)' }}>
+            {calendarYear} Activity
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--bc-text-muted)', marginTop: 4 }}>
+            {formatActiveEntityLabel(activeEntities.length)}
+          </div>
+        </div>
+        <div
+          aria-hidden="true"
+          style={{
+            minWidth: 24,
+            fontSize: 18,
+            fontWeight: 600,
+            color: 'var(--bc-accent)',
+            lineHeight: 1,
+          }}
         >
-          {filter.label}
-        </button>
-      ))}
+          {isOpen ? '-' : '+'}
+        </div>
+      </button>
+
+      {isOpen ? (
+        <div id={panelId} style={{ padding: '0 24px 24px' }}>
+          <div className="bc-desktop-only bc-table-wrap" style={{ overflowX: 'auto' }}>
+            <table className="bc-table" style={{ minWidth: 760 }}>
+              <thead>
+                <tr>
+                  <th>Entity</th>
+                  <th>Sector</th>
+                  <th className="text-center">Launch</th>
+                  <th className="text-right">Revenue</th>
+                  <th className="text-right">Net Profit</th>
+                  <th className="text-right">Margin</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeEntities.map((entity) => (
+                  <tr key={`${yearRow.year}-${entity.id}`}>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{entity.name}</div>
+                    </td>
+                    <td style={{ color: 'var(--bc-text-secondary)', fontSize: 13 }}>{entity.sector}</td>
+                    <td className="text-center" style={{ color: 'var(--bc-text-secondary)' }}>
+                      {formatCalendarYear(entity.launchYear)}
+                    </td>
+                    <td className="text-right">{formatCrore(entity.revenueCrore)}</td>
+                    <td className="text-right" style={{ color: 'var(--bc-positive)' }}>
+                      {formatCrore(entity.profitCrore)}
+                    </td>
+                    <td className="text-right" style={{ color: 'var(--bc-text-secondary)' }}>
+                      {formatPercent(entity.netMarginPercent)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="bc-mobile-only">
+            {activeEntities.map((entity) => (
+              <div key={`${yearRow.year}-${entity.id}`} className="bc-mobile-card">
+                <div className="bc-mobile-card-header">
+                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--bc-text-primary)' }}>
+                    {entity.name}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--bc-text-muted)', marginTop: 2 }}>
+                    {entity.sector}
+                  </div>
+                </div>
+                <div className="bc-mobile-card-row">
+                  <span className="bc-mobile-card-label">Launch</span>
+                  <span className="bc-mobile-card-value">{formatCalendarYear(entity.launchYear)}</span>
+                </div>
+                <div className="bc-mobile-card-row">
+                  <span className="bc-mobile-card-label">Revenue</span>
+                  <span className="bc-mobile-card-value">{formatCrore(entity.revenueCrore)}</span>
+                </div>
+                <div className="bc-mobile-card-row">
+                  <span className="bc-mobile-card-label">Net Profit</span>
+                  <span style={{ color: 'var(--bc-positive)', fontWeight: 600 }}>
+                    {formatCrore(entity.profitCrore)}
+                  </span>
+                </div>
+                <div className="bc-mobile-card-row">
+                  <span className="bc-mobile-card-label">Margin</span>
+                  <span style={{ color: 'var(--bc-text-secondary)' }}>
+                    {formatPercent(entity.netMarginPercent)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -86,8 +192,6 @@ export default function BlueCapPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [saveMessage, setSaveMessage] = useState('');
-  const [yearFilter, setYearFilter] = useState('all');
-
 
   useEffect(() => {
     let isMounted = true;
@@ -98,6 +202,7 @@ export default function BlueCapPage() {
         if (!response.ok) {
           throw new Error(`Failed to load BlueCAP data: ${response.status}`);
         }
+
         const payload = await response.json();
         if (isMounted) {
           setScenario(normalizeBlueCapScenario(payload));
@@ -116,6 +221,7 @@ export default function BlueCapPage() {
     };
 
     loadScenario();
+
     return () => {
       isMounted = false;
     };
@@ -161,17 +267,16 @@ export default function BlueCapPage() {
 
   const handleSave = async () => {
     if (isSaving) return;
+
     setIsSaving(true);
     setSaveMessage('');
     setErrorMessage('');
-
-    const payload = buildBlueCapSavePayload(scenario);
 
     try {
       const response = await fetch(BLUECAP_ENDPOINTS.update, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(buildBlueCapSavePayload(scenario)),
       });
 
       if (!response.ok) {
@@ -191,18 +296,21 @@ export default function BlueCapPage() {
   };
 
   const simulation = simulateBlueCapScenario(scenario);
+  const year4CalendarYear = formatCalendarYear(4);
+  const year4Entities = simulation.yearlyBreakdown[simulation.yearlyBreakdown.length - 1]?.entities || [];
+
   const summaryCards = [
     {
       id: 'revenue',
-      label: 'Year 4 Total Revenue',
+      label: `${year4CalendarYear} Total Revenue`,
       value: formatCrore(simulation.year4Summary.totalRevenueCrore),
       helper: 'Aggregate revenue across all subsidiaries.',
     },
     {
       id: 'profit',
-      label: 'Year 4 Net Profit',
+      label: `${year4CalendarYear} Net Profit`,
       value: formatCrore(simulation.year4Summary.totalNetProfitCrore),
-      helper: 'Year 4 profit using the current margin assumptions.',
+      helper: `${year4CalendarYear} profit using the current margin assumptions.`,
     },
     {
       id: 'capital',
@@ -215,18 +323,14 @@ export default function BlueCapPage() {
       label: 'Most Profitable Entity',
       value: simulation.year4Summary.mostProfitableEntity?.name || 'N/A',
       helper: simulation.year4Summary.mostProfitableEntity
-        ? `${formatCrore(simulation.year4Summary.mostProfitableEntity.profitCrore)} net profit in Year 4`
-        : 'No active entities in Year 4.',
+        ? `${formatCrore(simulation.year4Summary.mostProfitableEntity.profitCrore)} net profit in ${year4CalendarYear}`
+        : `No active entities in ${year4CalendarYear}.`,
     },
   ];
 
-  /* ── Filtered yearly data for the entity revenue/profit section ── */
-  const filteredYearlyBreakdown =
-    yearFilter === 'all'
-      ? simulation.yearlyBreakdown
-      : simulation.yearlyBreakdown.filter((row) => row.year === yearFilter);
-
-  if (isLoading) return <LoadingScreen title="Loading BlueCAP simulator..." />;
+  if (isLoading) {
+    return <LoadingScreen title="Loading BlueCAP simulator..." />;
+  }
 
   return (
     <div className="bc-page">
@@ -238,9 +342,6 @@ export default function BlueCapPage() {
         }}
         className="sm:px-6 lg:px-8 xl:px-10"
       >
-        {/* ══════════════════════════════════════
-            HEADER
-        ══════════════════════════════════════ */}
         <header
           className="flex items-center justify-between gap-4"
           style={{
@@ -252,8 +353,12 @@ export default function BlueCapPage() {
             to="/"
             className="flex items-center gap-2 text-sm transition-colors"
             style={{ color: 'var(--bc-text-secondary)' }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--bc-accent)')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--bc-text-secondary)')}
+            onMouseEnter={(event) => {
+              event.currentTarget.style.color = 'var(--bc-accent)';
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget.style.color = 'var(--bc-text-secondary)';
+            }}
           >
             <FiArrowLeft size={16} />
             <span className="hidden sm:inline">Back to Home</span>
@@ -284,9 +389,6 @@ export default function BlueCapPage() {
           </div>
         </header>
 
-        {/* ══════════════════════════════════════
-            SCENARIO CONTROLS
-        ══════════════════════════════════════ */}
         <section className="bc-card" style={{ marginTop: 24 }}>
           <SectionHeader
             title="Scenario Controls"
@@ -307,11 +409,11 @@ export default function BlueCapPage() {
             </button>
           </SectionHeader>
 
-          {(errorMessage || saveMessage) && (
+          {errorMessage || saveMessage ? (
             <div className={errorMessage ? 'bc-msg-error' : 'bc-msg-success'}>
               {errorMessage || saveMessage}
             </div>
-          )}
+          ) : null}
 
           <div
             className="grid gap-4"
@@ -389,9 +491,6 @@ export default function BlueCapPage() {
           </div>
         </section>
 
-        {/* ══════════════════════════════════════
-            KPI SUMMARY CARDS
-        ══════════════════════════════════════ */}
         <div
           className="grid gap-4"
           style={{
@@ -408,9 +507,6 @@ export default function BlueCapPage() {
           ))}
         </div>
 
-        {/* ══════════════════════════════════════
-            ENTITY TARGETS
-        ══════════════════════════════════════ */}
         <section className="bc-card" style={{ marginTop: 24 }}>
           <SectionHeader
             title="Entity Targets"
@@ -422,7 +518,6 @@ export default function BlueCapPage() {
             </div>
           </SectionHeader>
 
-          {/* Desktop Table */}
           <div className="bc-desktop-only bc-table-wrap" style={{ overflowX: 'auto', margin: '0 -24px' }}>
             <table className="bc-table" style={{ minWidth: 900 }}>
               <thead>
@@ -432,14 +527,13 @@ export default function BlueCapPage() {
                   <th className="text-center">Launch</th>
                   <th className="text-right">Year 4 Revenue Target</th>
                   <th className="text-right">Net Margin</th>
-                  <th className="text-right">Year 4 Profit</th>
+                  <th className="text-right">{year4CalendarYear} Profit</th>
                 </tr>
               </thead>
               <tbody>
                 {scenario.entities.map((entity) => {
-                  const year4Projection = simulation.yearlyBreakdown[simulation.yearlyBreakdown.length - 1].entities.find(
-                    (entry) => entry.id === entity.id
-                  );
+                  const year4Projection = year4Entities.find((entry) => entry.id === entity.id);
+
                   return (
                     <tr key={entity.id}>
                       <td>
@@ -450,11 +544,9 @@ export default function BlueCapPage() {
                           {entity.id}
                         </div>
                       </td>
-                      <td style={{ color: 'var(--bc-text-secondary)', fontSize: 13 }}>
-                        {entity.sector}
-                      </td>
+                      <td style={{ color: 'var(--bc-text-secondary)', fontSize: 13 }}>{entity.sector}</td>
                       <td className="text-center" style={{ fontWeight: 500 }}>
-                        Year {entity.launchYear}
+                        {formatCalendarYear(entity.launchYear)}
                       </td>
                       <td className="text-right" style={{ width: 180 }}>
                         <input
@@ -483,13 +575,7 @@ export default function BlueCapPage() {
                           style={{ width: 90 }}
                         />
                       </td>
-                      <td
-                        className="text-right"
-                        style={{
-                          fontWeight: 600,
-                          color: 'var(--bc-positive)',
-                        }}
-                      >
+                      <td className="text-right" style={{ fontWeight: 600, color: 'var(--bc-positive)' }}>
                         {formatCrore(year4Projection?.profitCrore || 0)}
                       </td>
                     </tr>
@@ -499,36 +585,34 @@ export default function BlueCapPage() {
             </table>
           </div>
 
-          {/* Mobile Cards */}
           <div className="bc-mobile-only">
             {scenario.entities.map((entity) => {
-              const year4Projection = simulation.yearlyBreakdown[simulation.yearlyBreakdown.length - 1].entities.find(
-                (entry) => entry.id === entity.id
-              );
+              const year4Projection = year4Entities.find((entry) => entry.id === entity.id);
+
               return (
                 <div key={entity.id} className="bc-mobile-card">
                   <div className="bc-mobile-card-header">
                     <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--bc-text-primary)' }}>
                       {entity.name}
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--bc-text-muted)', marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: 'var(--bc-text-muted)', marginTop: 2 }}>
                       {entity.sector}
                     </div>
                   </div>
                   <div className="bc-mobile-card-row">
                     <span className="bc-mobile-card-label">Launch</span>
-                    <span className="bc-mobile-card-value">Year {entity.launchYear}</span>
+                    <span className="bc-mobile-card-value">{formatCalendarYear(entity.launchYear)}</span>
                   </div>
                   <div style={{ padding: '8px 0' }}>
                     <label
                       className="bc-label"
-                      htmlFor={`bc-m-rev-${entity.id}`}
+                      htmlFor={`bc-m-revenue-${entity.id}`}
                       style={{ marginBottom: 6 }}
                     >
-                      Revenue Target (Cr BDT)
+                      Year 4 Revenue Target
                     </label>
                     <input
-                      id={`bc-m-rev-${entity.id}`}
+                      id={`bc-m-revenue-${entity.id}`}
                       type="number"
                       min="0"
                       step="0.01"
@@ -566,7 +650,7 @@ export default function BlueCapPage() {
                       borderTop: '1px solid var(--bc-border)',
                     }}
                   >
-                    <span className="bc-mobile-card-label">Year 4 Profit</span>
+                    <span className="bc-mobile-card-label">{year4CalendarYear} Profit</span>
                     <span style={{ fontWeight: 700, color: 'var(--bc-positive)', fontSize: 15 }}>
                       {formatCrore(year4Projection?.profitCrore || 0)}
                     </span>
@@ -577,16 +661,12 @@ export default function BlueCapPage() {
           </div>
         </section>
 
-        {/* ══════════════════════════════════════
-            YEARLY ECOSYSTEM ROLLUPS
-        ══════════════════════════════════════ */}
         <section className="bc-card" style={{ marginTop: 24 }}>
           <SectionHeader
             title="Yearly Ecosystem Rollups"
-            description="Aggregated view of ecosystem performance across all four years."
+            description="Aggregated view of ecosystem performance across the four calendar years."
           />
 
-          {/* Desktop Table */}
           <div className="bc-desktop-only bc-table-wrap" style={{ overflowX: 'auto', margin: '0 -24px' }}>
             <table className="bc-table" style={{ minWidth: 780 }}>
               <thead>
@@ -600,14 +680,14 @@ export default function BlueCapPage() {
                 </tr>
               </thead>
               <tbody>
-                {simulation.yearlyBreakdown.map((row, idx) => (
+                {simulation.yearlyBreakdown.map((row, index) => (
                   <tr
                     key={row.year}
                     style={{
-                      backgroundColor: idx % 2 === 1 ? 'rgba(148,163,184,0.02)' : 'transparent',
+                      backgroundColor: index % 2 === 1 ? 'rgba(148,163,184,0.02)' : 'transparent',
                     }}
                   >
-                    <td style={{ fontWeight: 600 }}>Year {row.year}</td>
+                    <td style={{ fontWeight: 600 }}>{formatCalendarYear(row.year)}</td>
                     <td className="text-center" style={{ color: 'var(--bc-text-secondary)' }}>
                       {row.activeEntityCount}
                     </td>
@@ -627,16 +707,15 @@ export default function BlueCapPage() {
             </table>
           </div>
 
-          {/* Mobile Cards */}
           <div className="bc-mobile-only">
             {simulation.yearlyBreakdown.map((row) => (
               <div key={row.year} className="bc-mobile-card">
                 <div className="bc-mobile-card-header">
                   <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--bc-text-primary)' }}>
-                    Year {row.year}
+                    {formatCalendarYear(row.year)}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--bc-text-muted)', marginTop: 2 }}>
-                    {row.activeEntityCount} active {row.activeEntityCount === 1 ? 'entity' : 'entities'}
+                    {formatActiveEntityLabel(row.activeEntityCount)}
                   </div>
                 </div>
                 <div className="bc-mobile-card-row">
@@ -669,150 +748,25 @@ export default function BlueCapPage() {
           </div>
         </section>
 
-        {/* ══════════════════════════════════════
-            YEARLY ENTITY REVENUE & PROFIT
-        ══════════════════════════════════════ */}
         <section className="bc-card" style={{ marginTop: 24 }}>
           <SectionHeader
             title="Yearly Entity Revenue and Profit"
-            description="Per-entity financial breakdown by year. Use the filter to focus on a specific year."
-          >
-            <div className="bc-desktop-only">
-              <YearTabs value={yearFilter} onChange={setYearFilter} />
-            </div>
-          </SectionHeader>
+            description="Open a calendar year to inspect only the entities that were active in that period."
+          />
 
-          {/* Desktop Table */}
-          <div className="bc-desktop-only bc-table-wrap" style={{ overflowX: 'auto', margin: '0 -24px' }}>
-            <table className="bc-table" style={{ minWidth: 820 }}>
-              <thead>
-                <tr>
-                  <th>Year</th>
-                  <th>Entity</th>
-                  <th className="text-center">Launch</th>
-                  <th className="text-right">Revenue</th>
-                  <th className="text-right">Net Profit</th>
-                  <th className="text-right">Margin</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredYearlyBreakdown.flatMap((yearRow, yearIdx) => {
-                  const rows = [];
-                  /* Year separator row */
-                  if (yearFilter === 'all') {
-                    rows.push(
-                      <tr key={`sep-${yearRow.year}`} className="bc-year-separator">
-                        <td colSpan={6}>
-                          Year {yearRow.year} — {yearRow.activeEntityCount} active{' '}
-                          {yearRow.activeEntityCount === 1 ? 'entity' : 'entities'}
-                        </td>
-                      </tr>
-                    );
-                  }
-                  yearRow.entities.forEach((entity) => {
-                    rows.push(
-                      <tr key={`${yearRow.year}-${entity.id}`}>
-                        <td style={{ fontWeight: 500 }}>Year {yearRow.year}</td>
-                        <td>
-                          <div style={{ fontWeight: 500 }}>{entity.name}</div>
-                          <div
-                            style={{
-                              fontSize: 11,
-                              color: 'var(--bc-text-muted)',
-                              marginTop: 1,
-                            }}
-                          >
-                            {entity.sector}
-                          </div>
-                        </td>
-                        <td className="text-center" style={{ color: 'var(--bc-text-secondary)' }}>
-                          Year {entity.launchYear}
-                        </td>
-                        <td className="text-right">{formatCrore(entity.revenueCrore)}</td>
-                        <td className="text-right" style={{ color: 'var(--bc-positive)' }}>
-                          {formatCrore(entity.profitCrore)}
-                        </td>
-                        <td className="text-right" style={{ color: 'var(--bc-text-secondary)' }}>
-                          {formatPercent(entity.netMarginPercent)}
-                        </td>
-                      </tr>
-                    );
-                  });
-                  return rows;
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile Cards */}
-          <div className="bc-mobile-only">
-            {/* Mobile defaults to Year 1 via initial state, but user can switch */}
-            <div style={{ marginBottom: 16 }}>
-              <YearTabs value={yearFilter} onChange={setYearFilter} />
-            </div>
-            {(yearFilter === 'all'
-              ? simulation.yearlyBreakdown
-              : simulation.yearlyBreakdown.filter((r) => r.year === yearFilter)
-            ).map((yearRow) => (
-              <div key={yearRow.year}>
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: 'var(--bc-accent)',
-                    padding: '12px 0 8px',
-                    letterSpacing: '0.03em',
-                  }}
-                >
-                  Year {yearRow.year}
-                </div>
-                {yearRow.entities.map((entity) => (
-                  <div key={`${yearRow.year}-${entity.id}`} className="bc-mobile-card">
-                    <div className="bc-mobile-card-header">
-                      <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--bc-text-primary)' }}>
-                        {entity.name}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--bc-text-muted)', marginTop: 2 }}>
-                        {entity.sector}
-                      </div>
-                    </div>
-                    <div className="bc-mobile-card-row">
-                      <span className="bc-mobile-card-label">Launch</span>
-                      <span className="bc-mobile-card-value">Year {entity.launchYear}</span>
-                    </div>
-                    <div className="bc-mobile-card-row">
-                      <span className="bc-mobile-card-label">Revenue</span>
-                      <span className="bc-mobile-card-value">{formatCrore(entity.revenueCrore)}</span>
-                    </div>
-                    <div className="bc-mobile-card-row">
-                      <span className="bc-mobile-card-label">Net Profit</span>
-                      <span style={{ color: 'var(--bc-positive)', fontWeight: 600 }}>
-                        {formatCrore(entity.profitCrore)}
-                      </span>
-                    </div>
-                    <div className="bc-mobile-card-row">
-                      <span className="bc-mobile-card-label">Margin</span>
-                      <span style={{ color: 'var(--bc-text-secondary)' }}>
-                        {formatPercent(entity.netMarginPercent)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          <div style={{ margin: '0 -24px', borderBottom: '1px solid var(--bc-border)' }}>
+            {simulation.yearlyBreakdown.map((yearRow) => (
+              <YearActivityAccordion key={yearRow.year} yearRow={yearRow} />
             ))}
           </div>
         </section>
 
-        {/* ══════════════════════════════════════
-            DEPENDENCY METRICS
-        ══════════════════════════════════════ */}
         <section className="bc-card" style={{ marginTop: 24, marginBottom: 40 }}>
           <SectionHeader
             title="Dependency Metrics"
             description="Ecosystem dependency loops showing provider relationships and revenue exposure."
           />
 
-          {/* Desktop Table */}
           <div className="bc-desktop-only bc-table-wrap" style={{ overflowX: 'auto', margin: '0 -24px' }}>
             <table className="bc-table" style={{ minWidth: 860 }}>
               <thead>
@@ -821,7 +775,7 @@ export default function BlueCapPage() {
                   <th style={{ minWidth: 100 }}>Providers</th>
                   <th style={{ minWidth: 160 }}>Covered Entities</th>
                   <th className="text-right" style={{ minWidth: 160 }}>
-                    Year 4 Revenue Exposure
+                    {year4CalendarYear} Revenue Exposure
                   </th>
                   <th style={{ minWidth: 280 }}>Notes</th>
                 </tr>
@@ -865,14 +819,7 @@ export default function BlueCapPage() {
                         </span>
                       </div>
                     </td>
-                    <td
-                      className="text-right"
-                      style={{
-                        fontWeight: 600,
-                        color: 'var(--bc-cyan)',
-                        fontSize: 14,
-                      }}
-                    >
+                    <td className="text-right" style={{ fontWeight: 600, color: 'var(--bc-cyan)', fontSize: 14 }}>
                       {formatCrore(metric.year4RevenueExposureCrore)}
                     </td>
                     <td style={{ color: 'var(--bc-text-secondary)', lineHeight: 1.5, fontSize: 13 }}>
@@ -884,7 +831,6 @@ export default function BlueCapPage() {
             </table>
           </div>
 
-          {/* Mobile Cards */}
           <div className="bc-mobile-only">
             {simulation.dependencyMetrics.map((metric) => (
               <div key={metric.id} className="bc-mobile-card">
