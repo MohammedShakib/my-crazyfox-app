@@ -54,13 +54,46 @@ describe('bluecapSimulation', () => {
 
   test('computes dependency exposure metrics from the current scenario', () => {
     const simulation = simulateBlueCapScenario(defaultScenario);
+    const metricMap = new Map(simulation.dependencyMetrics.map((metric) => [metric.id, metric]));
+
+    expect(metricMap.get('bluecash-payments')?.year4RevenueExposureCrore).toBe(1650);
+    expect(metricMap.get('delivery-loop')?.year4RevenueExposureCrore).toBe(900);
+    expect(metricMap.get('atech-tech-stack')?.year4RevenueExposureCrore).toBe(225);
+    expect(metricMap.get('bluetex-supply-chain')?.year4RevenueExposureCrore).toBe(100);
+  });
+
+  test('preserves the prompt-defined dependency providers and covered entities', () => {
+    const simulation = simulateBlueCapScenario(defaultScenario);
     const metricMap = new Map(
-      simulation.dependencyMetrics.map((metric) => [metric.id, metric.year4RevenueExposureCrore])
+      simulation.dependencyMetrics.map((metric) => [metric.id, metric])
     );
 
-    expect(metricMap.get('bluecash-payments')).toBe(1650);
-    expect(metricMap.get('delivery-loop')).toBe(900);
-    expect(metricMap.get('atech-tech-stack')).toBe(225);
-    expect(metricMap.get('bluetex-supply-chain')).toBe(100);
+    expect(metricMap.get('atech-tech-stack')?.providerNames).toEqual(['Atech']);
+    expect(metricMap.get('atech-tech-stack')?.coveredEntityNames).toEqual([
+      'BlueSky',
+      'BlueTaxi',
+      'BlueCash',
+    ]);
+
+    expect(metricMap.get('delivery-loop')?.providerNames).toEqual([
+      'BlueExpress',
+      'BlueTaxi',
+    ]);
+    expect(metricMap.get('delivery-loop')?.coveredEntityNames).toEqual([
+      'Hyundai Bangladesh',
+      'Itra',
+    ]);
+
+    expect(metricMap.get('bluecash-payments')?.providerNames).toEqual(['BlueCash']);
+    expect(metricMap.get('bluecash-payments')?.coveredEntityNames).toEqual([
+      'Hyundai Bangladesh',
+      'Itra',
+      'BlueSky',
+      'BlueBirds',
+      'BlueExpress',
+    ]);
+
+    expect(metricMap.get('bluetex-supply-chain')?.providerNames).toEqual(['BlueTEX']);
+    expect(metricMap.get('bluetex-supply-chain')?.coveredEntityNames).toEqual(['Itra']);
   });
 });
