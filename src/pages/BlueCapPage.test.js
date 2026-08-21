@@ -36,7 +36,9 @@ describe('BlueCapPage', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/getBlueCapData');
     expect(screen.getByLabelText('Initial Capital')).toHaveValue(500);
     expect(screen.getByText('2025 Total Revenue')).toBeInTheDocument();
-    expect(screen.getAllByText('2025 Revenue Target').length).toBeGreaterThan(0);
+    expect(screen.queryByText('2025 Revenue Target')).not.toBeInTheDocument();
+    expect(screen.queryByText('Profit Margin')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Cumulative Net Profit').length).toBeGreaterThan(0);
     expect(screen.getAllByText('2,375.00 Cr BDT').length).toBeGreaterThan(0);
     expect(screen.queryByText('Yearly Ecosystem Rollups')).not.toBeInTheDocument();
     expect(screen.queryByText('Yearly Entity Revenue and Profit')).not.toBeInTheDocument();
@@ -98,6 +100,11 @@ describe('BlueCapPage', () => {
         <BlueCapPage />
       </MemoryRouter>
     );
+
+    const [atechButton] = await screen.findAllByRole('button', {
+      name: /Toggle Atech yearly breakdown/i,
+    });
+    await userEvent.click(atechButton);
 
     const revenueInput = await screen.findByLabelText('2025 revenue target for Atech');
     await userEvent.clear(revenueInput);

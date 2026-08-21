@@ -60,7 +60,7 @@ function SectionHeader({ title, description, children }) {
   );
 }
 
-function EntityTimelineDetails({ details }) {
+function EntityTimelineDetails({ entity, details, updateEntityValue, finalYearLabel }) {
   return (
     <div>
       <div style={{ fontSize: 12, color: 'var(--bc-text-muted)', marginBottom: 4 }}>
@@ -69,6 +69,58 @@ function EntityTimelineDetails({ details }) {
       {details.description ? (
         <div style={{ fontSize: 12, color: 'var(--bc-text-muted)', marginBottom: 14 }}>
           {details.description}
+        </div>
+      ) : null}
+
+      {details.showScenarioInputs ? (
+        <div
+          className="grid gap-4"
+          style={{
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            marginBottom: 18,
+          }}
+        >
+          <div>
+            <label
+              className="bc-label"
+              htmlFor={`bc-expanded-revenue-${entity.id}`}
+              style={{ marginBottom: 6 }}
+            >
+              {finalYearLabel} Revenue Target
+            </label>
+            <input
+              id={`bc-expanded-revenue-${entity.id}`}
+              aria-label={`${finalYearLabel} revenue target for ${entity.name}`}
+              type="number"
+              min="0"
+              step="0.01"
+              value={entity.year4TargetRevenueCrore}
+              onChange={(event) =>
+                updateEntityValue(entity.id, 'year4TargetRevenueCrore', event.target.value)
+              }
+              className="bc-input"
+            />
+          </div>
+          <div>
+            <label
+              className="bc-label"
+              htmlFor={`bc-expanded-margin-${entity.id}`}
+              style={{ marginBottom: 6 }}
+            >
+              Profit Margin (%)
+            </label>
+            <input
+              id={`bc-expanded-margin-${entity.id}`}
+              aria-label={`Profit margin for ${entity.name}`}
+              type="number"
+              step="0.01"
+              value={entity.netMarginPercent}
+              onChange={(event) =>
+                updateEntityValue(entity.id, 'netMarginPercent', event.target.value)
+              }
+              className="bc-input"
+            />
+          </div>
         </div>
       ) : null}
 
@@ -171,32 +223,8 @@ function EntityTableRow({ entity, details, updateEntityValue, finalYearLabel }) 
         <td className="text-center" style={{ fontWeight: 500 }}>
           {formatCalendarYear(entity.launchYear)}
         </td>
-        <td className="text-right" style={{ width: 180 }}>
-          <input
-            aria-label={`${finalYearLabel} revenue target for ${entity.name}`}
-            type="number"
-            min="0"
-            step="0.01"
-            value={entity.year4TargetRevenueCrore}
-            onChange={(event) =>
-              updateEntityValue(entity.id, 'year4TargetRevenueCrore', event.target.value)
-            }
-            className="bc-input bc-input-table"
-            style={{ width: 130 }}
-          />
-        </td>
-        <td className="text-right" style={{ width: 130 }}>
-          <input
-            aria-label={`Profit margin for ${entity.name}`}
-            type="number"
-            step="0.01"
-            value={entity.netMarginPercent}
-            onChange={(event) =>
-              updateEntityValue(entity.id, 'netMarginPercent', event.target.value)
-            }
-            className="bc-input bc-input-table"
-            style={{ width: 90 }}
-          />
+        <td className="text-center" style={{ color: 'var(--bc-text-secondary)', fontWeight: 500 }}>
+          {details.projectionWindowLabel}
         </td>
         <td className="text-right" style={{ fontWeight: 600, color: 'var(--bc-positive)' }}>
           {formatCrore(details.totalNetProfitCrore)}
@@ -204,8 +232,13 @@ function EntityTableRow({ entity, details, updateEntityValue, finalYearLabel }) 
       </tr>
       {isOpen ? (
         <tr id={panelId}>
-          <td colSpan={6} style={{ padding: '0 24px 20px 58px', background: 'rgba(148,163,184,0.02)' }}>
-            <EntityTimelineDetails details={details} />
+          <td colSpan={5} style={{ padding: '0 24px 20px 58px', background: 'rgba(148,163,184,0.02)' }}>
+            <EntityTimelineDetails
+              entity={entity}
+              details={details}
+              updateEntityValue={updateEntityValue}
+              finalYearLabel={finalYearLabel}
+            />
           </td>
         </tr>
       ) : null}
@@ -253,45 +286,9 @@ function EntityMobileCard({ entity, details, updateEntityValue, finalYearLabel }
         <span className="bc-mobile-card-value">{formatCalendarYear(entity.launchYear)}</span>
       </div>
 
-      <div style={{ padding: '8px 0' }}>
-        <label
-          className="bc-label"
-          htmlFor={`bc-m-revenue-${entity.id}`}
-          style={{ marginBottom: 6 }}
-        >
-          {finalYearLabel} Revenue Target
-        </label>
-        <input
-          id={`bc-m-revenue-${entity.id}`}
-          type="number"
-          min="0"
-          step="0.01"
-          value={entity.year4TargetRevenueCrore}
-          onChange={(event) =>
-            updateEntityValue(entity.id, 'year4TargetRevenueCrore', event.target.value)
-          }
-          className="bc-input"
-        />
-      </div>
-
-      <div style={{ padding: '8px 0' }}>
-        <label
-          className="bc-label"
-          htmlFor={`bc-m-margin-${entity.id}`}
-          style={{ marginBottom: 6 }}
-        >
-          Profit Margin (%)
-        </label>
-        <input
-          id={`bc-m-margin-${entity.id}`}
-          type="number"
-          step="0.01"
-          value={entity.netMarginPercent}
-          onChange={(event) =>
-            updateEntityValue(entity.id, 'netMarginPercent', event.target.value)
-          }
-          className="bc-input"
-        />
+      <div className="bc-mobile-card-row">
+        <span className="bc-mobile-card-label">Projection Window</span>
+        <span className="bc-mobile-card-value">{details.projectionWindowLabel}</span>
       </div>
 
       <div
@@ -302,7 +299,7 @@ function EntityMobileCard({ entity, details, updateEntityValue, finalYearLabel }
           borderTop: '1px solid var(--bc-border)',
         }}
       >
-        <span className="bc-mobile-card-label">Total Net Profit</span>
+        <span className="bc-mobile-card-label">Cumulative Net Profit</span>
         <span style={{ fontWeight: 700, color: 'var(--bc-positive)', fontSize: 15 }}>
           {formatCrore(details.totalNetProfitCrore)}
         </span>
@@ -310,7 +307,12 @@ function EntityMobileCard({ entity, details, updateEntityValue, finalYearLabel }
 
       {isOpen ? (
         <div id={panelId} style={{ marginTop: 14 }}>
-          <EntityTimelineDetails details={details} />
+          <EntityTimelineDetails
+            entity={entity}
+            details={details}
+            updateEntityValue={updateEntityValue}
+            finalYearLabel={finalYearLabel}
+          />
         </div>
       ) : null}
     </div>
@@ -434,7 +436,12 @@ export default function BlueCapPage() {
 
     scenario.entities.forEach((entity) => {
       if (entity.id === 'bluebirds') {
-        breakdownMap.set(entity.id, buildBlueBirdsOperationalProjection());
+        breakdownMap.set(entity.id, {
+          ...buildBlueBirdsOperationalProjection(),
+          projectionWindowLabel: '2023-2030',
+          totalNetProfitLabel: 'Cumulative net profit from 2023 through 2030.',
+          showScenarioInputs: false,
+        });
         return;
       }
 
@@ -448,8 +455,12 @@ export default function BlueCapPage() {
 
       breakdownMap.set(entity.id, {
         entityId: entity.id,
-        heading: 'Scenario-based breakdown from launch onward.',
+        heading: 'Scenario-based breakdown through 2025.',
+        description: `Cumulative net profit covers ${formatCalendarYear(entity.launchYear)} through ${finalYearLabel}.`,
         yearlyPerformance,
+        projectionWindowLabel: `${formatCalendarYear(entity.launchYear)}-${finalYearLabel}`,
+        totalNetProfitLabel: `Cumulative net profit from ${formatCalendarYear(entity.launchYear)} through ${finalYearLabel}.`,
+        showScenarioInputs: true,
         totalNetProfitCrore: roundCrore(
           yearlyPerformance.reduce((sum, entry) => sum + entry.profitCrore, 0)
         ),
@@ -457,7 +468,7 @@ export default function BlueCapPage() {
     });
 
     return breakdownMap;
-  }, [scenario.entities, simulation.yearlyBreakdown]);
+  }, [finalYearLabel, scenario.entities, simulation.yearlyBreakdown]);
 
   const summaryCards = [
     {
@@ -670,7 +681,7 @@ export default function BlueCapPage() {
         <section className="bc-card" style={{ marginTop: 24 }}>
           <SectionHeader
             title="Entity Targets"
-            description="Set the final-year revenue target and profit margin. Open any entity to inspect its active-year profit breakdown."
+            description="Each row shows the projection window and cumulative net profit. Open any entity to inspect yearly performance and any scenario inputs."
           >
             <div className="bc-badge">
               <FiDatabase size={13} />
@@ -685,9 +696,8 @@ export default function BlueCapPage() {
                   <th>Entity</th>
                   <th>Sector</th>
                   <th className="text-center">Launch</th>
-                  <th className="text-right">{finalYearLabel} Revenue Target</th>
-                  <th className="text-right">Profit Margin</th>
-                  <th className="text-right">Total Net Profit</th>
+                  <th className="text-center">Projection Window</th>
+                  <th className="text-right">Cumulative Net Profit</th>
                 </tr>
               </thead>
               <tbody>
