@@ -69,9 +69,7 @@ function computeCrazyFoxNetProfit(startAUM, loan, grossReturn) {
   const grossProfit = totalInvestable * grossReturn;
   const mgmtFee = startAUM * 0.02;
   const loanInterest = loan * 0.05;
-  const performanceBase = grossProfit - mgmtFee - loanInterest;
-  const performanceFee = Math.max(0, performanceBase * 0.2);
-  return grossProfit - mgmtFee - loanInterest - performanceFee;
+  return grossProfit - mgmtFee - loanInterest;
 }
 
 function getCrazyFoxInjectedEquity(rows) {
@@ -550,7 +548,7 @@ export default function CrazyFoxPage() {
               <svg className="w-6 h-6 text-blue-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M12 6V3m0 18v-3" />
               </svg>
-              <span>Cost Model: <strong>Institutional Grade</strong></span>
+              <span>Cost Model: <strong>2% management fee + 5% loan interest</strong></span>
             </div>
           </div>
         </div>
