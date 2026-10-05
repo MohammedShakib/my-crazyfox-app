@@ -31,13 +31,21 @@ jobs:
         env:
           CI: false
 
+      - name: Skip Firebase Functions deploy notice
+        if: ${{ vars.DEPLOY_FIREBASE_FUNCTIONS != 'true' }}
+        run: |
+          echo "Skipping Functions deploy because DEPLOY_FIREBASE_FUNCTIONS is not true."
+          echo "Enable it after the deploy service account has iam.serviceAccounts.ActAs."
+
       - name: Prepare Firebase service account
+        if: ${{ vars.DEPLOY_FIREBASE_FUNCTIONS == 'true' }}
         run: |
           echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Deploy Firebase Functions
+        if: ${{ vars.DEPLOY_FIREBASE_FUNCTIONS == 'true' }}
         run: npx firebase-tools deploy --only functions --project crazyfox-f7e51 --non-interactive
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
