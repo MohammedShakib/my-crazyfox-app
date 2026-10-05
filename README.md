@@ -6,6 +6,18 @@ This project was bootstrapped with [Create React App](https://github.com/faceboo
 
 In the project directory, you can run:
 
+## Chatbot Configuration
+
+The project assistant uses the server-side `/api/chatbot` route. Configure GemBridge in `.env` for local development:
+
+```bash
+GEMBRIDGE_BASE_URL=https://shakibs-pc.tail76a11b.ts.net/v1
+GEMBRIDGE_API_KEY=your-gembridge-key
+GEMBRIDGE_MODEL=gemini-3.7-flash
+```
+
+For Firebase Functions, set the same values in the function environment before deploying.
+
 ### `npm start`
 
 Runs the app in the development mode.\

@@ -2,11 +2,18 @@
 
 const express = require('express');
 const mongoose = require('mongoose');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 const defaultBlueCapScenario = require('./src/data/bluecapDefaultScenario.json');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const BUILD_DIR = path.join(__dirname, 'build');
+const GEMBRIDGE_BASE_URL =
+  process.env.GEMBRIDGE_BASE_URL || 'https://shakibs-pc.tail76a11b.ts.net/v1';
+const GEMBRIDGE_API_KEY = process.env.GEMBRIDGE_API_KEY;
+const GEMBRIDGE_MODEL = process.env.GEMBRIDGE_MODEL || 'gemini-3.7-flash';
 
 app.use(express.json());
 
@@ -206,6 +213,55 @@ const ensureBlueCapScenario = async () => {
   return scenario;
 };
 
+const compactForPrompt = (value, maxChars = 24000) => {
+  const text = JSON.stringify(value, null, 2);
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars)}\n... [context truncated]`;
+};
+
+const buildChatbotContext = async () => {
+  if (!process.env.MONGODB_URI) {
+    return {
+      generatedAt: new Date().toISOString(),
+      dataSources: {
+        crazyFox: [],
+        rahmanTrust: [],
+        blueCap: null,
+      },
+      unavailableSources: ['MongoDB-backed project data'],
+    };
+  }
+
+  await connectToDatabase();
+
+  const [crazyFoxResult, rahmanTrustResult, blueCapResult] = await Promise.allSettled([
+    CrazyFox.find({}).sort({ year: 'asc' }).lean(),
+    RahmanTrust.find({}).sort({ id: 'asc' }).lean(),
+    ensureBlueCapScenario(),
+  ]);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    dataSources: {
+      crazyFox: crazyFoxResult.status === 'fulfilled' ? crazyFoxResult.value : [],
+      rahmanTrust: rahmanTrustResult.status === 'fulfilled' ? rahmanTrustResult.value : [],
+      blueCap: blueCapResult.status === 'fulfilled' ? blueCapResult.value : null,
+    },
+    unavailableSources: [
+      crazyFoxResult.status === 'rejected' ? 'CrazyFox' : null,
+      rahmanTrustResult.status === 'rejected' ? 'Rahman Trust' : null,
+      blueCapResult.status === 'rejected' ? 'BlueCAP' : null,
+    ].filter(Boolean),
+  };
+};
+
+const extractGemBridgeMessage = (payload) =>
+  payload?.choices?.[0]?.message?.content ||
+  payload?.choices?.[0]?.text ||
+  payload?.message?.content ||
+  payload?.content ||
+  '';
+
 // CrazyFox routes
 app.get('/api/getCrazyFoxData', async (req, res) => {
   try {
@@ -343,6 +399,92 @@ app.post('/api/updateBlueCapData', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+app.post('/api/chatbot', async (req, res) => {
+  const question = String(req.body?.question || '').trim();
+  const history = Array.isArray(req.body?.history) ? req.body.history.slice(-8) : [];
+  const currentPage = String(req.body?.currentPage || '/');
+
+  if (!question) {
+    return res.status(400).json({ error: 'Question is required.' });
+  }
+
+  if (!GEMBRIDGE_API_KEY) {
+    return res.status(500).json({
+      error: 'GemBridge is not configured. Set GEMBRIDGE_API_KEY in the server environment.',
+    });
+  }
+
+  try {
+    const projectContext = await buildChatbotContext();
+    const messages = [
+      {
+        role: 'system',
+        content: [
+          'You are the CrazyFox project assistant.',
+          'Answer using the supplied project data when the question is about CrazyFox, BlueCAP, Rahman Family Trust, or Bangladesh Trust.',
+          'You may perform calculations and scenario reasoning. Show concise formulas when useful.',
+          'If the provided data does not contain the answer, say what is missing instead of inventing project facts.',
+          'Keep answers practical, concise, and easy to read.',
+          `Current app page: ${currentPage}`,
+          `Project data snapshot:\n${compactForPrompt(projectContext)}`,
+        ].join('\n\n'),
+      },
+      ...history
+        .filter((item) => item && ['user', 'assistant'].includes(item.role) && typeof item.content === 'string')
+        .map((item) => ({ role: item.role, content: item.content.slice(0, 2000) })),
+      { role: 'user', content: question },
+    ];
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const response = await fetch(`${GEMBRIDGE_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${GEMBRIDGE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: GEMBRIDGE_MODEL,
+        messages,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    const payloadText = await response.text();
+    let payload = {};
+    try {
+      payload = payloadText ? JSON.parse(payloadText) : {};
+    } catch (error) {
+      payload = { raw: payloadText };
+    }
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: payload?.error?.message || payload?.error || payloadText || 'GemBridge request failed.',
+      });
+    }
+
+    const answer = extractGemBridgeMessage(payload);
+    res.status(200).json({ answer: answer || 'GemBridge returned an empty response.' });
+  } catch (error) {
+    console.error('POST /api/chatbot failed', error);
+    res.status(500).json({
+      error: error.name === 'AbortError' ? 'GemBridge request timed out.' : error.message,
+    });
+  }
+});
+
+if (fs.existsSync(BUILD_DIR)) {
+  app.use(express.static(BUILD_DIR));
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && req.accepts('html')) {
+      return res.sendFile(path.join(BUILD_DIR, 'index.html'));
+    }
+    return next();
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`API server listening on http://localhost:${PORT}`);

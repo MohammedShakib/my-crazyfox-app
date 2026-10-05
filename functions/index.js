@@ -13,6 +13,13 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json());
 
+const GEMBRIDGE_BASE_URL =
+  process.env.GEMBRIDGE_BASE_URL || "https://shakibs-pc.tail76a11b.ts.net/v1";
+const GEMBRIDGE_API_KEY =
+  process.env.GEMBRIDGE_API_KEY || functions.config()?.gembridge?.api_key;
+const GEMBRIDGE_MODEL =
+  process.env.GEMBRIDGE_MODEL || functions.config()?.gembridge?.model || "gemini-3.7-flash";
+
 const cloneBlueCapScenario = (scenario = defaultBlueCapScenario) =>
   JSON.parse(JSON.stringify(scenario));
 
@@ -132,6 +139,61 @@ const ensureBlueCapScenario = async () => {
 
   return normalizeBlueCapScenario(docSnap.data());
 };
+
+const compactForPrompt = (value, maxChars = 24000) => {
+  const text = JSON.stringify(value, null, 2);
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars)}\n... [context truncated]`;
+};
+
+const getCollectionData = async (collectionName, orderField) => {
+  let query = db.collection(collectionName);
+  if (orderField) query = query.orderBy(orderField, "asc");
+  const snapshot = await query.get();
+  return snapshot.docs.map((doc) => doc.data());
+};
+
+const buildChatbotContext = async () => {
+  const [
+    crazyFoxResult,
+    rahmanTrustResult,
+    blueCapResult,
+    bdPortfolioResult,
+    bdBeneficiariesResult,
+  ] = await Promise.allSettled([
+    getCollectionData("crazyfox_sim_data", "year"),
+    getCollectionData("rahman_trust_data", "id"),
+    ensureBlueCapScenario(),
+    getCollectionData("bd_trust_portfolio", "id"),
+    getCollectionData("bd_trust_beneficiaries", "id"),
+  ]);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    dataSources: {
+      crazyFox: crazyFoxResult.status === "fulfilled" ? crazyFoxResult.value : [],
+      rahmanTrust: rahmanTrustResult.status === "fulfilled" ? rahmanTrustResult.value : [],
+      blueCap: blueCapResult.status === "fulfilled" ? blueCapResult.value : null,
+      bdTrustPortfolio: bdPortfolioResult.status === "fulfilled" ? bdPortfolioResult.value : [],
+      bdTrustBeneficiaries:
+        bdBeneficiariesResult.status === "fulfilled" ? bdBeneficiariesResult.value : [],
+    },
+    unavailableSources: [
+      crazyFoxResult.status === "rejected" ? "CrazyFox" : null,
+      rahmanTrustResult.status === "rejected" ? "Rahman Trust" : null,
+      blueCapResult.status === "rejected" ? "BlueCAP" : null,
+      bdPortfolioResult.status === "rejected" ? "Bangladesh Trust Portfolio" : null,
+      bdBeneficiariesResult.status === "rejected" ? "Bangladesh Trust Beneficiaries" : null,
+    ].filter(Boolean),
+  };
+};
+
+const extractGemBridgeMessage = (payload) =>
+  payload?.choices?.[0]?.message?.content ||
+  payload?.choices?.[0]?.text ||
+  payload?.message?.content ||
+  payload?.content ||
+  "";
 
 const getCrazyFoxData = async (req, res) => {
   try {
@@ -533,7 +595,86 @@ const addBDTrustDeposit = async (req, res) => {
   }
 };
 
+const chatbot = async (req, res) => {
+  const question = String(req.body?.question || "").trim();
+  const history = Array.isArray(req.body?.history) ? req.body.history.slice(-8) : [];
+  const currentPage = String(req.body?.currentPage || "/");
+
+  if (!question) {
+    return res.status(400).json({ error: "Question is required." });
+  }
+
+  if (!GEMBRIDGE_API_KEY) {
+    return res.status(500).json({
+      error: "GemBridge is not configured. Set GEMBRIDGE_API_KEY in the function environment.",
+    });
+  }
+
+  try {
+    const projectContext = await buildChatbotContext();
+    const messages = [
+      {
+        role: "system",
+        content: [
+          "You are the CrazyFox project assistant.",
+          "Answer using the supplied project data when the question is about CrazyFox, BlueCAP, Rahman Family Trust, or Bangladesh Trust.",
+          "You may perform calculations and scenario reasoning. Show concise formulas when useful.",
+          "If the provided data does not contain the answer, say what is missing instead of inventing project facts.",
+          "Keep answers practical, concise, and easy to read.",
+          `Current app page: ${currentPage}`,
+          `Project data snapshot:\n${compactForPrompt(projectContext)}`,
+        ].join("\n\n"),
+      },
+      ...history
+        .filter((item) => item && ["user", "assistant"].includes(item.role) &&
+          typeof item.content === "string")
+        .map((item) => ({ role: item.role, content: item.content.slice(0, 2000) })),
+      { role: "user", content: question },
+    ];
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const response = await fetch(`${GEMBRIDGE_BASE_URL.replace(/\/$/, "")}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${GEMBRIDGE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: GEMBRIDGE_MODEL,
+        messages,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    const payloadText = await response.text();
+    let payload = {};
+    try {
+      payload = payloadText ? JSON.parse(payloadText) : {};
+    } catch (error) {
+      payload = { raw: payloadText };
+    }
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: payload?.error?.message || payload?.error || payloadText || "GemBridge request failed.",
+      });
+    }
+
+    const answer = extractGemBridgeMessage(payload);
+    res.status(200).json({ answer: answer || "GemBridge returned an empty response." });
+  } catch (error) {
+    console.error("POST /api/chatbot failed", error);
+    res.status(500).json({
+      error: error.name === "AbortError" ? "GemBridge request timed out." : error.message,
+    });
+  }
+};
+
 // Expose handlers on both direct and /api-prefixed paths so Hosting rewrites reach them
+app.post("/chatbot", chatbot);
+app.post("/api/chatbot", chatbot);
 app.get("/getCrazyFoxData", getCrazyFoxData);
 app.get("/api/getCrazyFoxData", getCrazyFoxData);
 app.get("/getBlueCapData", getBlueCapData);

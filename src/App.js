@@ -4,6 +4,7 @@ import SelectionPage from './pages/SelectionPage';
 import CrazyFoxPage from './pages/CrazyFoxPage';
 import RahmanTrustPage from './pages/RahmanTrustPage';
 import BlueCapPage from './pages/BlueCapPage';
+import ProjectChatbot from './components/ProjectChatbot';
 
 export function AppRoutes() {
   return (
@@ -20,6 +21,7 @@ function App() {
   return (
     <BrowserRouter>
       <AppRoutes />
+      <ProjectChatbot />
     </BrowserRouter>
   );
 }
