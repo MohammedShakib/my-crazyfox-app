@@ -22,6 +22,7 @@ export default function ProjectChatbot() {
   const [inputValue, setInputValue] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [errorDetails, setErrorDetails] = useState(null);
   const inputRef = useRef(null);
 
   const sendQuestion = async (questionText) => {
@@ -32,6 +33,7 @@ export default function ProjectChatbot() {
     setMessages(nextMessages);
     setInputValue('');
     setErrorMessage('');
+    setErrorDetails(null);
     setIsSending(true);
 
     try {
@@ -45,9 +47,22 @@ export default function ProjectChatbot() {
         }),
       });
 
-      const payload = await response.json().catch(() => ({}));
+      const responseText = await response.text();
+      let payload = {};
+      try {
+        payload = responseText ? JSON.parse(responseText) : {};
+      } catch (error) {
+        payload = { raw: responseText };
+      }
+
       if (!response.ok) {
-        throw new Error(payload.error || `Chatbot request failed with status ${response.status}`);
+        const requestError = new Error(payload.error || `Chatbot request failed with status ${response.status}`);
+        requestError.details = {
+          status: response.status,
+          statusText: response.statusText,
+          response: payload,
+        };
+        throw requestError;
       }
 
       setMessages((current) => [
@@ -56,6 +71,11 @@ export default function ProjectChatbot() {
       ]);
     } catch (error) {
       setErrorMessage(error.message || 'Unable to reach the chatbot.');
+      setErrorDetails(error.details || {
+        stage: 'browser_fetch',
+        name: error.name,
+        message: error.message,
+      });
       setMessages((current) => current.slice(0, -1));
       setInputValue(question);
     } finally {
@@ -147,7 +167,15 @@ export default function ProjectChatbot() {
 
           {errorMessage ? (
             <div className="border-t border-rose-500/20 bg-rose-500/10 px-4 py-2 text-xs text-rose-200">
-              {errorMessage}
+              <div className="font-medium">{errorMessage}</div>
+              {errorDetails ? (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-rose-100/90">Show details</summary>
+                  <pre className="mt-2 max-h-44 overflow-auto whitespace-pre-wrap rounded-lg border border-rose-500/20 bg-slate-950/70 p-2 text-[11px] leading-5 text-rose-100">
+                    {JSON.stringify(errorDetails, null, 2)}
+                  </pre>
+                </details>
+              ) : null}
             </div>
           ) : null}
 

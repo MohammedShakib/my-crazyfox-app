@@ -193,6 +193,19 @@ const extractGemBridgeMessage = (payload) =>
   payload?.content ||
   "";
 
+const getErrorDetails = (error) => ({
+  name: error?.name || "Error",
+  message: error?.message || String(error),
+  code: error?.code,
+  cause: error?.cause
+    ? {
+        name: error.cause.name,
+        message: error.cause.message,
+        code: error.cause.code,
+      }
+    : undefined,
+});
+
 const getCrazyFoxData = async (req, res) => {
   try {
     const snapshot = await db.collection("crazyfox_sim_data").orderBy("year", "asc").get();
@@ -594,9 +607,11 @@ const addBDTrustDeposit = async (req, res) => {
 };
 
 const chatbot = async (req, res) => {
+  const requestStartedAt = Date.now();
   const question = String(req.body?.question || "").trim();
   const history = Array.isArray(req.body?.history) ? req.body.history.slice(-8) : [];
   const currentPage = String(req.body?.currentPage || "/");
+  const gemBridgeUrl = `${GEMBRIDGE_BASE_URL.replace(/\/$/, "")}/chat/completions`;
 
   if (!question) {
     return res.status(400).json({ error: "Question is required." });
@@ -609,7 +624,21 @@ const chatbot = async (req, res) => {
   }
 
   try {
-    const projectContext = await buildChatbotContext();
+    let projectContext;
+    try {
+      projectContext = await buildChatbotContext();
+    } catch (error) {
+      console.error("POST /api/chatbot context failed", error);
+      return res.status(500).json({
+        error: "Unable to load project data context.",
+        details: {
+          stage: "context",
+          elapsedMs: Date.now() - requestStartedAt,
+          error: getErrorDetails(error),
+        },
+      });
+    }
+
     const messages = [
       {
         role: "system",
@@ -632,19 +661,39 @@ const chatbot = async (req, res) => {
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000);
-    const response = await fetch(`${GEMBRIDGE_BASE_URL.replace(/\/$/, "")}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${GEMBRIDGE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: GEMBRIDGE_MODEL,
-        messages,
-      }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
+    let response;
+    try {
+      response = await fetch(gemBridgeUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${GEMBRIDGE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: GEMBRIDGE_MODEL,
+          messages,
+        }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error("POST /api/chatbot GemBridge fetch failed", error);
+      return res.status(502).json({
+        error: error.name === "AbortError" ?
+          "GemBridge request timed out." :
+          "GemBridge fetch failed.",
+        details: {
+          stage: "gembridge_fetch",
+          elapsedMs: Date.now() - requestStartedAt,
+          gemBridgeBaseUrl: GEMBRIDGE_BASE_URL,
+          gemBridgeUrl,
+          model: GEMBRIDGE_MODEL,
+          error: getErrorDetails(error),
+        },
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const payloadText = await response.text();
     let payload = {};
@@ -657,6 +706,16 @@ const chatbot = async (req, res) => {
     if (!response.ok) {
       return res.status(response.status).json({
         error: payload?.error?.message || payload?.error || payloadText || "GemBridge request failed.",
+        details: {
+          stage: "gembridge_response",
+          elapsedMs: Date.now() - requestStartedAt,
+          gemBridgeBaseUrl: GEMBRIDGE_BASE_URL,
+          gemBridgeUrl,
+          model: GEMBRIDGE_MODEL,
+          status: response.status,
+          statusText: response.statusText,
+          responsePreview: payloadText.slice(0, 1200),
+        },
       });
     }
 
@@ -666,6 +725,11 @@ const chatbot = async (req, res) => {
     console.error("POST /api/chatbot failed", error);
     res.status(500).json({
       error: error.name === "AbortError" ? "GemBridge request timed out." : error.message,
+      details: {
+        stage: "unknown",
+        elapsedMs: Date.now() - requestStartedAt,
+        error: getErrorDetails(error),
+      },
     });
   }
 };
