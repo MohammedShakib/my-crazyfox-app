@@ -4,6 +4,11 @@ const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
 const defaultBlueCapScenario = require("./bluecapDefaultScenario.json");
+const {
+  answerFromKnowledge,
+  asQuickFactText,
+  buildProjectKnowledge,
+} = require("./projectKnowledge");
 
 // Initialize the app and database
 admin.initializeApp();
@@ -166,7 +171,7 @@ const buildChatbotContext = async () => {
     getCollectionData("bd_trust_beneficiaries", "id"),
   ]);
 
-  return {
+  const context = {
     generatedAt: new Date().toISOString(),
     dataSources: {
       crazyFox: crazyFoxResult.status === "fulfilled" ? crazyFoxResult.value : [],
@@ -183,6 +188,11 @@ const buildChatbotContext = async () => {
       bdPortfolioResult.status === "rejected" ? "Bangladesh Trust Portfolio" : null,
       bdBeneficiariesResult.status === "rejected" ? "Bangladesh Trust Beneficiaries" : null,
     ].filter(Boolean),
+  };
+
+  return {
+    ...context,
+    quickKnowledge: buildProjectKnowledge(context),
   };
 };
 
@@ -647,6 +657,15 @@ const chatbot = async (req, res) => {
       });
     }
 
+    const knowledgeAnswer = answerFromKnowledge(question, projectContext.quickKnowledge);
+    if (knowledgeAnswer) {
+      return res.status(200).json({
+        answer: knowledgeAnswer,
+        source: "quick_knowledge",
+        elapsedMs: Date.now() - requestStartedAt,
+      });
+    }
+
     const messages = [
       {
         role: "system",
@@ -660,6 +679,7 @@ const chatbot = async (req, res) => {
           "Keep follow-up suggestions as plain natural language only, never as markup.",
           "Keep answers practical, concise, and easy to read.",
           `Current app page: ${currentPage}`,
+          `Quick project knowledge:\n${asQuickFactText(projectContext.quickKnowledge)}`,
           `Project data snapshot:\n${compactForPrompt(projectContext)}`,
         ].join("\n\n"),
       },

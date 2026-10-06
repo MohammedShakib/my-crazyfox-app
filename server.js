@@ -6,6 +6,11 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 const defaultBlueCapScenario = require('./src/data/bluecapDefaultScenario.json');
+const {
+  answerFromKnowledge,
+  asQuickFactText,
+  buildProjectKnowledge,
+} = require('./functions/projectKnowledge');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -240,7 +245,7 @@ const buildChatbotContext = async () => {
     ensureBlueCapScenario(),
   ]);
 
-  return {
+  const context = {
     generatedAt: new Date().toISOString(),
     dataSources: {
       crazyFox: crazyFoxResult.status === 'fulfilled' ? crazyFoxResult.value : [],
@@ -252,6 +257,11 @@ const buildChatbotContext = async () => {
       rahmanTrustResult.status === 'rejected' ? 'Rahman Trust' : null,
       blueCapResult.status === 'rejected' ? 'BlueCAP' : null,
     ].filter(Boolean),
+  };
+
+  return {
+    ...context,
+    quickKnowledge: buildProjectKnowledge(context),
   };
 };
 
@@ -454,6 +464,15 @@ app.post('/api/chatbot', async (req, res) => {
       });
     }
 
+    const knowledgeAnswer = answerFromKnowledge(question, projectContext.quickKnowledge);
+    if (knowledgeAnswer) {
+      return res.status(200).json({
+        answer: knowledgeAnswer,
+        source: 'quick_knowledge',
+        elapsedMs: Date.now() - requestStartedAt,
+      });
+    }
+
     const messages = [
       {
         role: 'system',
@@ -467,6 +486,7 @@ app.post('/api/chatbot', async (req, res) => {
           'Keep follow-up suggestions as plain natural language only, never as markup.',
           'Keep answers practical, concise, and easy to read.',
           `Current app page: ${currentPage}`,
+          `Quick project knowledge:\n${asQuickFactText(projectContext.quickKnowledge)}`,
           `Project data snapshot:\n${compactForPrompt(projectContext)}`,
         ].join('\n\n'),
       },
