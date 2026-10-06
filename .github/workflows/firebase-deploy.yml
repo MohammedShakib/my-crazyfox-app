@@ -38,7 +38,7 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Deploy Firebase Functions
-        run: npx firebase-tools deploy --only functions --project crazyfox-f7e51 --non-interactive
+        run: npx firebase-tools deploy --only functions:api --project crazyfox-f7e51 --non-interactive --force
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
 

@@ -673,6 +673,12 @@ const chatbot = async (req, res) => {
 };
 
 // Expose handlers on both direct and /api-prefixed paths so Hosting rewrites reach them
+app.get("/chatbotHealth", (req, res) => {
+  res.status(200).json({ ok: true, version: "chatbot-v1" });
+});
+app.get("/api/chatbotHealth", (req, res) => {
+  res.status(200).json({ ok: true, version: "chatbot-v1" });
+});
 app.post("/chatbot", chatbot);
 app.post("/api/chatbot", chatbot);
 app.get("/getCrazyFoxData", getCrazyFoxData);
