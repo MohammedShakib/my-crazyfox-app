@@ -17,12 +17,69 @@ const STARTER_MESSAGES = [
   'Dashboard summary',
 ];
 
+const FOLLOW_UP_MESSAGES = {
+  crazyfox: [
+    'Show the Year 20 formula',
+    'Compare start and ending AUM',
+    'Explain the profit drivers',
+    'What assumptions matter most?',
+  ],
+  bluecap: [
+    'Break down BlueCAP revenue',
+    'Compare entity margins',
+    'Show inter-entity dependencies',
+    'Which entity is strongest?',
+  ],
+  rahman: [
+    'Review Rahman monthly income',
+    'Show trust payout assumptions',
+    'Compare custodian balances',
+    'Explain beneficiary payouts',
+  ],
+  general: [
+    'Summarize the current dashboard',
+    'Show the key assumptions',
+    'Find the biggest risk',
+    'What should I inspect next?',
+  ],
+};
+
 const INITIAL_MESSAGES = [
   {
     role: 'assistant',
     content: 'Hi, I can answer questions using this project data and run calculations from the current numbers.',
   },
 ];
+
+function getSuggestedPrompts(messages, currentPath) {
+  const hasUserMessage = messages.some((message) => message.role === 'user');
+  if (!hasUserMessage) {
+    return { label: 'Try asking', prompts: STARTER_MESSAGES };
+  }
+
+  const lastAssistant =
+    [...messages].reverse().find((message) => message.role === 'assistant')?.content.toLowerCase() || '';
+  const context = `${currentPath} ${lastAssistant}`.toLowerCase();
+
+  if (context.includes('bluecap')) {
+    return { label: 'Suggested next', prompts: FOLLOW_UP_MESSAGES.bluecap };
+  }
+
+  if (context.includes('rahman') || context.includes('trust') || context.includes('beneficiary')) {
+    return { label: 'Suggested next', prompts: FOLLOW_UP_MESSAGES.rahman };
+  }
+
+  if (
+    context.includes('crazyfox') ||
+    context.includes('aum') ||
+    context.includes('equity') ||
+    context.includes('portfolio')
+  ) {
+    return { label: 'Suggested next', prompts: FOLLOW_UP_MESSAGES.crazyfox };
+  }
+
+  return { label: 'Suggested next', prompts: FOLLOW_UP_MESSAGES.general };
+}
 
 function renderInline(text) {
   return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
@@ -101,6 +158,7 @@ export default function ProjectChatbot() {
   const [errorDetails, setErrorDetails] = useState(null);
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
+  const suggestedPromptGroup = getSuggestedPrompts(messages, location.pathname);
 
   useEffect(() => {
     if (!isOpen || !scrollRef.current) return;
@@ -288,17 +346,22 @@ export default function ProjectChatbot() {
           </div>
 
           <div className="border-t border-slate-900 bg-slate-950/90 px-4 py-3">
-            <div className="mb-3 flex flex-wrap justify-center gap-2 px-3">
-              {STARTER_MESSAGES.map((starter) => (
-                <button
-                  key={starter}
-                  type="button"
-                  onClick={() => void sendQuestion(starter)}
-                  className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3.5 py-1.5 text-xs font-semibold text-cyan-50 transition-colors hover:border-cyan-300/70 hover:bg-cyan-400/20 hover:text-white"
-                >
-                  {starter}
-                </button>
-              ))}
+            <div className="mb-3">
+              <div className="mb-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                {suggestedPromptGroup.label}
+              </div>
+              <div className="flex flex-wrap justify-center gap-2 px-2">
+                {suggestedPromptGroup.prompts.map((starter) => (
+                  <button
+                    key={starter}
+                    type="button"
+                    onClick={() => void sendQuestion(starter)}
+                    className="max-w-full rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3.5 py-1.5 text-xs font-semibold text-cyan-50 transition-colors hover:border-cyan-300/70 hover:bg-cyan-400/20 hover:text-white"
+                  >
+                    {starter}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {errorMessage ? (

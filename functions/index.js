@@ -193,6 +193,14 @@ const extractGemBridgeMessage = (payload) =>
   payload?.content ||
   "";
 
+const sanitizeAssistantAnswer = (answer) => {
+  if (!answer) return answer;
+  return answer
+    .replace(/<ElicitationsGroup[\s\S]*?<\/ElicitationsGroup>/gi, "")
+    .replace(/<Elicitation\b[\s\S]*?\/>/gi, "")
+    .trim();
+};
+
 const getErrorDetails = (error) => ({
   name: error?.name || "Error",
   message: error?.message || String(error),
@@ -647,6 +655,9 @@ const chatbot = async (req, res) => {
           "Answer using the supplied project data when the question is about CrazyFox, BlueCAP, Rahman Family Trust, or Bangladesh Trust.",
           "You may perform calculations and scenario reasoning. Show concise formulas when useful.",
           "If the provided data does not contain the answer, say what is missing instead of inventing project facts.",
+          "Never output XML, JSX, HTML-like tags, tool directives, ElicitationsGroup, or hidden UI metadata.",
+          "Do not write romanized Bangla unless the user explicitly asks for it. Prefer Bangla script for Bangla questions and English for English questions.",
+          "Keep follow-up suggestions as plain natural language only, never as markup.",
           "Keep answers practical, concise, and easy to read.",
           `Current app page: ${currentPage}`,
           `Project data snapshot:\n${compactForPrompt(projectContext)}`,
@@ -719,7 +730,7 @@ const chatbot = async (req, res) => {
       });
     }
 
-    const answer = extractGemBridgeMessage(payload);
+    const answer = sanitizeAssistantAnswer(extractGemBridgeMessage(payload));
     res.status(200).json({ answer: answer || "GemBridge returned an empty response." });
   } catch (error) {
     console.error("POST /api/chatbot failed", error);
