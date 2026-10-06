@@ -51,22 +51,59 @@ const INITIAL_MESSAGES = [
   },
 ];
 
+function cleanPromptText(text) {
+  return text
+    .replace(/^[-*•\d.)\s]+/, '')
+    .replace(/\*\*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getAssistantFollowUpQuestion(content = '') {
+  const lines = content
+    .split('\n')
+    .map((line) => cleanPromptText(line))
+    .filter(Boolean);
+
+  const questionLine = [...lines]
+    .reverse()
+    .find((line) => /[?？]$/.test(line) && line.length >= 12 && line.length <= 140);
+
+  return questionLine || '';
+}
+
+function mergeSuggestedPrompts(primaryPrompt, fallbackPrompts) {
+  const prompts = primaryPrompt ? [primaryPrompt, ...fallbackPrompts] : fallbackPrompts;
+  const seenPrompts = new Set();
+
+  return prompts.filter((prompt) => {
+    const key = prompt.toLowerCase();
+    if (seenPrompts.has(key)) return false;
+    seenPrompts.add(key);
+    return true;
+  }).slice(0, 5);
+}
+
 function getSuggestedPrompts(messages, currentPath) {
   const hasUserMessage = messages.some((message) => message.role === 'user');
   if (!hasUserMessage) {
     return { label: 'Try asking', prompts: STARTER_MESSAGES };
   }
 
-  const lastAssistant =
-    [...messages].reverse().find((message) => message.role === 'assistant')?.content.toLowerCase() || '';
-  const context = `${currentPath} ${lastAssistant}`.toLowerCase();
+  const lastAssistantMessage = [...messages].reverse().find((message) => message.role === 'assistant');
+  const assistantFollowUp = getAssistantFollowUpQuestion(lastAssistantMessage?.content);
+  const context = `${currentPath} ${lastAssistantMessage?.content || ''}`.toLowerCase();
+  const buildGroup = (prompts) => ({
+    label: 'Suggested next',
+    prompts: mergeSuggestedPrompts(assistantFollowUp, prompts),
+  });
 
   if (context.includes('bluecap')) {
-    return { label: 'Suggested next', prompts: FOLLOW_UP_MESSAGES.bluecap };
+    return buildGroup(FOLLOW_UP_MESSAGES.bluecap);
   }
 
   if (context.includes('rahman') || context.includes('trust') || context.includes('beneficiary')) {
-    return { label: 'Suggested next', prompts: FOLLOW_UP_MESSAGES.rahman };
+    return buildGroup(FOLLOW_UP_MESSAGES.rahman);
   }
 
   if (
@@ -75,10 +112,10 @@ function getSuggestedPrompts(messages, currentPath) {
     context.includes('equity') ||
     context.includes('portfolio')
   ) {
-    return { label: 'Suggested next', prompts: FOLLOW_UP_MESSAGES.crazyfox };
+    return buildGroup(FOLLOW_UP_MESSAGES.crazyfox);
   }
 
-  return { label: 'Suggested next', prompts: FOLLOW_UP_MESSAGES.general };
+  return buildGroup(FOLLOW_UP_MESSAGES.general);
 }
 
 function renderInline(text) {
