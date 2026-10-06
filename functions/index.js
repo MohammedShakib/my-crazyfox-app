@@ -15,10 +15,8 @@ app.use(express.json());
 
 const GEMBRIDGE_BASE_URL =
   process.env.GEMBRIDGE_BASE_URL || "https://shakibs-pc.tail76a11b.ts.net/v1";
-const GEMBRIDGE_API_KEY =
-  process.env.GEMBRIDGE_API_KEY || functions.config()?.gembridge?.api_key;
-const GEMBRIDGE_MODEL =
-  process.env.GEMBRIDGE_MODEL || functions.config()?.gembridge?.model || "gemini-3.7-flash";
+const GEMBRIDGE_API_KEY = process.env.GEMBRIDGE_API_KEY;
+const GEMBRIDGE_MODEL = process.env.GEMBRIDGE_MODEL || "gemini-3.7-flash";
 
 const cloneBlueCapScenario = (scenario = defaultBlueCapScenario) =>
   JSON.parse(JSON.stringify(scenario));
