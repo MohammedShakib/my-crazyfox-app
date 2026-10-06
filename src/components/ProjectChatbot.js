@@ -1,12 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
+  FiClock,
   FiCopy,
   FiMaximize2,
   FiMessageCircle,
   FiMinimize2,
   FiMinusCircle,
+  FiPlus,
   FiSend,
+  FiTrash2,
   FiX,
 } from 'react-icons/fi';
 
@@ -50,6 +53,77 @@ const INITIAL_MESSAGES = [
     content: 'Hi, I can answer questions using this project data and run calculations from the current numbers.',
   },
 ];
+
+const CHAT_STORAGE_KEY = 'crazyfox-ai-chat-sessions';
+const MAX_CHAT_SESSIONS = 12;
+
+function cloneInitialMessages() {
+  return INITIAL_MESSAGES.map((message) => ({ ...message }));
+}
+
+function createChatSession(messages = cloneInitialMessages()) {
+  const now = Date.now();
+  return {
+    id: `chat-${now}-${Math.random().toString(36).slice(2, 8)}`,
+    title: getChatTitle(messages),
+    messages,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function getChatTitle(messages = []) {
+  const firstQuestion = messages.find((message) => message.role === 'user')?.content?.trim();
+  if (!firstQuestion) return 'New chat';
+  return firstQuestion.length > 42 ? `${firstQuestion.slice(0, 42)}...` : firstQuestion;
+}
+
+function getInitialChatState() {
+  if (typeof window === 'undefined') {
+    const session = createChatSession();
+    return { activeSessionId: session.id, sessions: [session] };
+  }
+
+  try {
+    const savedSessions = JSON.parse(window.localStorage.getItem(CHAT_STORAGE_KEY) || '[]');
+    const validSessions = Array.isArray(savedSessions)
+      ? savedSessions
+          .filter((session) => Array.isArray(session.messages) && session.id)
+          .map((session) => ({
+            ...session,
+            title: session.title || getChatTitle(session.messages),
+            createdAt: session.createdAt || Date.now(),
+            updatedAt: session.updatedAt || Date.now(),
+          }))
+      : [];
+
+    if (validSessions.length > 0) {
+      const sortedSessions = validSessions.sort((first, second) => second.updatedAt - first.updatedAt);
+      return {
+        activeSessionId: sortedSessions[0].id,
+        sessions: sortedSessions.slice(0, MAX_CHAT_SESSIONS),
+      };
+    }
+  } catch (error) {
+    window.localStorage.removeItem(CHAT_STORAGE_KEY);
+  }
+
+  const session = createChatSession();
+  return { activeSessionId: session.id, sessions: [session] };
+}
+
+function formatSessionTime(timestamp) {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  const today = new Date();
+  const isToday = date.toDateString() === today.toDateString();
+
+  if (isToday) {
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
 
 function cleanPromptText(text) {
   return text
@@ -188,21 +262,124 @@ export default function ProjectChatbot() {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [messages, setMessages] = useState(INITIAL_MESSAGES);
+  const [chatState, setChatState] = useState(getInitialChatState);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [errorDetails, setErrorDetails] = useState(null);
+  const chatbotRef = useRef(null);
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
+  const sortedSessions = [...chatState.sessions].sort((first, second) => second.updatedAt - first.updatedAt);
+  const activeSession = chatState.sessions.find((session) => session.id === chatState.activeSessionId) || sortedSessions[0];
+  const messages = activeSession?.messages || cloneInitialMessages();
   const suggestedPromptGroup = getSuggestedPrompts(messages, location.pathname);
+
+  const updateActiveMessages = (messagesUpdater) => {
+    setChatState((current) => {
+      const now = Date.now();
+      let nextSessions = current.sessions.map((session) => {
+        if (session.id !== current.activeSessionId) return session;
+        const nextMessages =
+          typeof messagesUpdater === 'function' ? messagesUpdater(session.messages) : messagesUpdater;
+        return {
+          ...session,
+          messages: nextMessages,
+          title: getChatTitle(nextMessages),
+          updatedAt: now,
+        };
+      });
+
+      if (!nextSessions.some((session) => session.id === current.activeSessionId)) {
+        const nextSession = createChatSession(
+          typeof messagesUpdater === 'function' ? messagesUpdater(cloneInitialMessages()) : messagesUpdater
+        );
+        nextSessions = [nextSession, ...nextSessions];
+        return {
+          activeSessionId: nextSession.id,
+          sessions: nextSessions.slice(0, MAX_CHAT_SESSIONS),
+        };
+      }
+
+      return {
+        ...current,
+        sessions: nextSessions
+          .sort((first, second) => second.updatedAt - first.updatedAt)
+          .slice(0, MAX_CHAT_SESSIONS),
+      };
+    });
+  };
+
+  const startNewChat = () => {
+    const nextSession = createChatSession();
+    setChatState((current) => ({
+      activeSessionId: nextSession.id,
+      sessions: [nextSession, ...current.sessions].slice(0, MAX_CHAT_SESSIONS),
+    }));
+    setInputValue('');
+    setErrorMessage('');
+    setErrorDetails(null);
+    setIsHistoryOpen(false);
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const selectChatSession = (sessionId) => {
+    setChatState((current) => ({ ...current, activeSessionId: sessionId }));
+    setInputValue('');
+    setErrorMessage('');
+    setErrorDetails(null);
+    setIsHistoryOpen(false);
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const deleteChatSession = (sessionId) => {
+    setChatState((current) => {
+      const remainingSessions = current.sessions.filter((session) => session.id !== sessionId);
+      if (remainingSessions.length === 0) {
+        const replacementSession = createChatSession();
+        return {
+          activeSessionId: replacementSession.id,
+          sessions: [replacementSession],
+        };
+      }
+
+      return {
+        activeSessionId:
+          current.activeSessionId === sessionId ? remainingSessions[0].id : current.activeSessionId,
+        sessions: remainingSessions,
+      };
+    });
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(sortedSessions.slice(0, MAX_CHAT_SESSIONS)));
+  }, [sortedSessions]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (!chatbotRef.current || chatbotRef.current.contains(event.target)) return;
+      setIsOpen(false);
+      setIsHistoryOpen(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || !scrollRef.current) return;
-    scrollRef.current.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: 'smooth',
-    });
+    if (typeof scrollRef.current.scrollTo === 'function') {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    } else {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
   }, [isOpen, messages, isSending, errorMessage]);
 
   const sendQuestion = async (questionText, source = 'custom') => {
@@ -210,7 +387,7 @@ export default function ProjectChatbot() {
     if (!question || isSending) return;
 
     const nextMessages = [...messages, { role: 'user', content: question }];
-    setMessages(nextMessages);
+    updateActiveMessages(nextMessages);
     setInputValue('');
     setErrorMessage('');
     setErrorDetails(null);
@@ -246,7 +423,7 @@ export default function ProjectChatbot() {
         throw requestError;
       }
 
-      setMessages((current) => [
+      updateActiveMessages((current) => [
         ...current,
         { role: 'assistant', content: payload.answer || 'I did not receive a usable answer.' },
       ]);
@@ -257,7 +434,7 @@ export default function ProjectChatbot() {
         name: error.name,
         message: error.message,
       });
-      setMessages((current) => current.slice(0, -1));
+      updateActiveMessages((current) => current.slice(0, -1));
       setInputValue(question);
     } finally {
       setIsSending(false);
@@ -277,7 +454,7 @@ export default function ProjectChatbot() {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-[3000] font-sans">
+    <div ref={chatbotRef} className="fixed bottom-4 right-4 z-[3000] font-sans">
       {isOpen ? (
         <div
           className={`flex w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-cyan-400/20 bg-slate-950/95 shadow-2xl shadow-black/60 ring-1 ring-white/5 backdrop-blur ${
@@ -298,12 +475,23 @@ export default function ProjectChatbot() {
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={copyLastAnswer}
+                  onClick={startNewChat}
                   className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-900 hover:text-slate-200"
-                  aria-label="Copy last answer"
-                  title="Copy last answer"
+                  aria-label="Start new chat"
+                  title="New chat"
                 >
-                  <FiCopy size={16} />
+                  <FiPlus size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsHistoryOpen((current) => !current)}
+                  className={`rounded-lg p-2 transition-colors hover:bg-slate-900 hover:text-slate-200 ${
+                    isHistoryOpen ? 'bg-slate-900 text-cyan-200' : 'text-slate-500'
+                  }`}
+                  aria-label="Show recent chats"
+                  title="Recent chats"
+                >
+                  <FiClock size={16} />
                 </button>
                 <button
                   type="button"
@@ -317,13 +505,12 @@ export default function ProjectChatbot() {
                 <button
                   type="button"
                   onClick={() => {
-                    setMessages(INITIAL_MESSAGES);
-                    setErrorMessage('');
-                    setErrorDetails(null);
+                    setIsOpen(false);
+                    setIsHistoryOpen(false);
                   }}
                   className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-900 hover:text-slate-200"
-                  aria-label="Clear chat"
-                  title="Clear chat"
+                  aria-label="Minimize chatbot"
+                  title="Minimize"
                 >
                   <FiMinusCircle size={17} />
                 </button>
@@ -338,11 +525,68 @@ export default function ProjectChatbot() {
                 </button>
               </div>
             </div>
-            <div className="mt-3 flex items-center gap-2 text-[11px] text-slate-500">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
-              Connected to CrazyFox data
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2 text-[11px] text-slate-500">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
+                <span className="truncate">Connected to CrazyFox data</span>
+              </div>
+              <button
+                type="button"
+                onClick={copyLastAnswer}
+                className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 transition-colors hover:text-slate-200"
+              >
+                <FiCopy size={12} />
+                Copy last answer
+              </button>
             </div>
           </div>
+
+          {isHistoryOpen ? (
+            <div className="border-b border-slate-800 bg-slate-950 px-4 py-3">
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Recent chats
+                </div>
+                <button
+                  type="button"
+                  onClick={startNewChat}
+                  className="text-xs font-semibold text-cyan-200 transition-colors hover:text-white"
+                >
+                  New chat
+                </button>
+              </div>
+              <div className="max-h-36 space-y-1 overflow-y-auto pr-1">
+                {sortedSessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className={`flex items-center gap-2 rounded-xl border px-2 py-1.5 ${
+                      session.id === activeSession?.id
+                        ? 'border-cyan-400/30 bg-cyan-500/10'
+                        : 'border-transparent hover:bg-slate-900'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => selectChatSession(session.id)}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <div className="truncate text-xs font-semibold text-slate-100">{session.title}</div>
+                      <div className="text-[10px] text-slate-500">{formatSessionTime(session.updatedAt)}</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteChatSession(session.id)}
+                      className="rounded-lg p-1.5 text-slate-600 transition-colors hover:bg-slate-800 hover:text-rose-200"
+                      aria-label={`Delete ${session.title}`}
+                      title="Delete chat"
+                    >
+                      <FiTrash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-5">
             {messages.map((message, index) => (
