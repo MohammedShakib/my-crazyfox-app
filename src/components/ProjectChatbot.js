@@ -1,11 +1,20 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { FiMessageCircle, FiSend, FiX, FiMinusCircle } from 'react-icons/fi';
+import {
+  FiCopy,
+  FiMaximize2,
+  FiMessageCircle,
+  FiMinimize2,
+  FiMinusCircle,
+  FiSend,
+  FiX,
+} from 'react-icons/fi';
 
 const STARTER_MESSAGES = [
-  'CrazyFox year 20 ending equity কত?',
-  'BlueCAP-এর most profitable entity কোনটা?',
-  'Rahman Trust monthly income calculate করো',
+  'CrazyFox year 20 ending equity?',
+  'BlueCAP most profitable entity?',
+  'Rahman Trust monthly income?',
+  'Summarize all project dashboards',
 ];
 
 const INITIAL_MESSAGES = [
@@ -15,15 +24,91 @@ const INITIAL_MESSAGES = [
   },
 ];
 
+function renderInline(text) {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    }
+    return <React.Fragment key={index}>{part}</React.Fragment>;
+  });
+}
+
+function ChatMessageContent({ content }) {
+  const lines = content.split('\n');
+  const elements = [];
+  let listItems = [];
+
+  const flushList = () => {
+    if (listItems.length === 0) return;
+    elements.push(
+      <ul key={`list-${elements.length}`} className="my-2 list-disc space-y-1 pl-5">
+        {listItems.map((item, index) => (
+          <li key={index}>{renderInline(item)}</li>
+        ))}
+      </ul>
+    );
+    listItems = [];
+  };
+
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushList();
+      return;
+    }
+
+    if (trimmed === '---') {
+      flushList();
+      elements.push(<hr key={`hr-${index}`} className="my-3 border-slate-700/70" />);
+      return;
+    }
+
+    if (trimmed.startsWith('### ')) {
+      flushList();
+      elements.push(
+        <h4 key={`h-${index}`} className="mb-2 mt-3 text-sm font-semibold text-cyan-100">
+          {renderInline(trimmed.slice(4))}
+        </h4>
+      );
+      return;
+    }
+
+    if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+      listItems.push(trimmed.slice(2));
+      return;
+    }
+
+    flushList();
+    elements.push(
+      <p key={`p-${index}`} className="mb-2 last:mb-0">
+        {renderInline(trimmed)}
+      </p>
+    );
+  });
+
+  flushList();
+  return <div>{elements}</div>;
+}
+
 export default function ProjectChatbot() {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [inputValue, setInputValue] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [errorDetails, setErrorDetails] = useState(null);
   const inputRef = useRef(null);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen || !scrollRef.current) return;
+    scrollRef.current.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: 'smooth',
+    });
+  }, [isOpen, messages, isSending, errorMessage]);
 
   const sendQuestion = async (questionText) => {
     const question = questionText.trim();
@@ -89,121 +174,173 @@ export default function ProjectChatbot() {
     void sendQuestion(inputValue);
   };
 
+  const copyLastAnswer = async () => {
+    const lastAnswer = [...messages].reverse().find((message) => message.role === 'assistant');
+    if (!lastAnswer || !navigator.clipboard) return;
+    await navigator.clipboard.writeText(lastAnswer.content);
+  };
+
   return (
     <div className="fixed bottom-4 right-4 z-[3000] font-sans">
       {isOpen ? (
-        <div className="w-[calc(100vw-2rem)] max-w-[420px] overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-950/95 shadow-2xl shadow-black/50 backdrop-blur">
-          <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-300">
-                <FiMessageCircle size={18} />
+        <div
+          className={`flex w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-cyan-400/20 bg-slate-950/95 shadow-2xl shadow-black/60 ring-1 ring-white/5 backdrop-blur ${
+            isExpanded ? 'h-[82vh] max-w-[720px]' : 'h-[70vh] max-h-[720px] max-w-[500px]'
+          }`}
+        >
+          <div className="border-b border-slate-800 bg-slate-950/90 px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-500/15 text-cyan-300 shadow-lg shadow-cyan-950/40">
+                  <FiMessageCircle size={18} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-white">CrazyFox AI</div>
+                  <div className="truncate text-xs text-slate-400">Live project data + Gemini calculations</div>
+                </div>
               </div>
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-white">CrazyFox AI</div>
-                <div className="truncate text-xs text-slate-400">Project data + Gemini calculations</div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={copyLastAnswer}
+                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-900 hover:text-slate-200"
+                  aria-label="Copy last answer"
+                  title="Copy last answer"
+                >
+                  <FiCopy size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded((current) => !current)}
+                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-900 hover:text-slate-200"
+                  aria-label={isExpanded ? 'Compact chatbot' : 'Expand chatbot'}
+                  title={isExpanded ? 'Compact' : 'Expand'}
+                >
+                  {isExpanded ? <FiMinimize2 size={16} /> : <FiMaximize2 size={16} />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMessages(INITIAL_MESSAGES);
+                    setErrorMessage('');
+                    setErrorDetails(null);
+                  }}
+                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-900 hover:text-slate-200"
+                  aria-label="Clear chat"
+                  title="Clear chat"
+                >
+                  <FiMinusCircle size={17} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-900 hover:text-slate-200"
+                  aria-label="Close chatbot"
+                  title="Close"
+                >
+                  <FiX size={18} />
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setMessages(INITIAL_MESSAGES)}
-                className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-900 hover:text-slate-200"
-                aria-label="Clear chat"
-                title="Clear chat"
-              >
-                <FiMinusCircle size={17} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-900 hover:text-slate-200"
-                aria-label="Close chatbot"
-                title="Close"
-              >
-                <FiX size={18} />
-              </button>
+            <div className="mt-3 flex items-center gap-2 text-[11px] text-slate-500">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
+              Connected to CrazyFox data
             </div>
           </div>
 
-          <div className="max-h-[56vh] min-h-[300px] space-y-3 overflow-y-auto px-4 py-4">
+          <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-5">
             {messages.map((message, index) => (
               <div
                 key={`${message.role}-${index}`}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex gap-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
+                {message.role === 'assistant' ? (
+                  <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-300">
+                    <FiMessageCircle size={14} />
+                  </div>
+                ) : null}
                 <div
-                  className={`max-w-[86%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-6 ${
+                  className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-lg ${
                     message.role === 'user'
-                      ? 'bg-cyan-500 text-slate-950'
-                      : 'border border-slate-800 bg-slate-900 text-slate-100'
+                      ? 'rounded-br-md bg-cyan-400 text-slate-950 shadow-cyan-950/20'
+                      : 'rounded-bl-md border border-slate-800 bg-slate-900/90 text-slate-100 shadow-black/20'
                   }`}
                 >
-                  {message.content}
+                  {message.role === 'assistant' ? (
+                    <ChatMessageContent content={message.content} />
+                  ) : (
+                    message.content
+                  )}
                 </div>
               </div>
             ))}
             {isSending ? (
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-400">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-300" />
-                Thinking with project data...
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-300">
+                  <FiMessageCircle size={14} />
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-xs text-slate-400">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-300" />
+                  Reading project data...
+                </div>
               </div>
             ) : null}
           </div>
 
-          {messages.length === 1 ? (
-            <div className="flex gap-2 overflow-x-auto border-t border-slate-900 px-4 py-3">
+          <div className="border-t border-slate-900 bg-slate-950/90 px-4 py-3">
+            <div className="mb-3 flex gap-2 overflow-x-auto">
               {STARTER_MESSAGES.map((starter) => (
                 <button
                   key={starter}
                   type="button"
                   onClick={() => void sendQuestion(starter)}
-                  className="shrink-0 rounded-full border border-slate-800 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-cyan-500/60 hover:text-white"
+                  className="shrink-0 rounded-full border border-slate-800 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-cyan-500/60 hover:bg-cyan-500/10 hover:text-white"
                 >
                   {starter}
                 </button>
               ))}
             </div>
-          ) : null}
 
-          {errorMessage ? (
-            <div className="border-t border-rose-500/20 bg-rose-500/10 px-4 py-2 text-xs text-rose-200">
-              <div className="font-medium">{errorMessage}</div>
-              {errorDetails ? (
-                <details className="mt-2">
-                  <summary className="cursor-pointer text-rose-100/90">Show details</summary>
-                  <pre className="mt-2 max-h-44 overflow-auto whitespace-pre-wrap rounded-lg border border-rose-500/20 bg-slate-950/70 p-2 text-[11px] leading-5 text-rose-100">
-                    {JSON.stringify(errorDetails, null, 2)}
-                  </pre>
-                </details>
-              ) : null}
-            </div>
-          ) : null}
+            {errorMessage ? (
+              <div className="mb-3 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                <div className="font-medium">{errorMessage}</div>
+                {errorDetails ? (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-rose-100/90">Show details</summary>
+                    <pre className="mt-2 max-h-44 overflow-auto whitespace-pre-wrap rounded-lg border border-rose-500/20 bg-slate-950/70 p-2 text-[11px] leading-5 text-rose-100">
+                      {JSON.stringify(errorDetails, null, 2)}
+                    </pre>
+                  </details>
+                ) : null}
+              </div>
+            ) : null}
 
-          <form onSubmit={handleSubmit} className="flex items-end gap-2 border-t border-slate-800 p-3">
-            <textarea
-              ref={inputRef}
-              value={inputValue}
-              onChange={(event) => setInputValue(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault();
-                  void sendQuestion(inputValue);
-                }
-              }}
-              rows={1}
-              placeholder="Ask about project data..."
-              className="max-h-28 min-h-[42px] flex-1 resize-none rounded-xl border border-slate-800 bg-slate-900 px-3 py-2.5 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-cyan-500"
-            />
-            <button
-              type="submit"
-              disabled={isSending || !inputValue.trim()}
-              className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl bg-cyan-500 text-slate-950 transition-colors hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label="Send message"
-              title="Send"
-            >
-              <FiSend size={17} />
-            </button>
-          </form>
+            <form onSubmit={handleSubmit} className="flex items-end gap-2">
+              <textarea
+                ref={inputRef}
+                value={inputValue}
+                onChange={(event) => setInputValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    void sendQuestion(inputValue);
+                  }
+                }}
+                rows={1}
+                placeholder="Ask about project data..."
+                className="max-h-28 min-h-[44px] flex-1 resize-none rounded-xl border border-cyan-500/40 bg-slate-900 px-3 py-2.5 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
+              />
+              <button
+                type="submit"
+                disabled={isSending || !inputValue.trim()}
+                className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-950/40 transition-colors hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Send message"
+                title="Send"
+              >
+                <FiSend size={17} />
+              </button>
+            </form>
+          </div>
         </div>
       ) : (
         <button
