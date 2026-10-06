@@ -205,7 +205,7 @@ export default function ProjectChatbot() {
     });
   }, [isOpen, messages, isSending, errorMessage]);
 
-  const sendQuestion = async (questionText) => {
+  const sendQuestion = async (questionText, source = 'custom') => {
     const question = questionText.trim();
     if (!question || isSending) return;
 
@@ -222,6 +222,7 @@ export default function ProjectChatbot() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question,
+          source,
           currentPage: location.pathname,
           history: nextMessages.slice(-8),
         }),
@@ -392,7 +393,7 @@ export default function ProjectChatbot() {
                   <button
                     key={starter}
                     type="button"
-                    onClick={() => void sendQuestion(starter)}
+                    onClick={() => void sendQuestion(starter, 'suggestion')}
                     className="max-w-full rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3.5 py-1.5 text-xs font-semibold text-cyan-50 transition-colors hover:border-cyan-300/70 hover:bg-cyan-400/20 hover:text-white"
                   >
                     {starter}

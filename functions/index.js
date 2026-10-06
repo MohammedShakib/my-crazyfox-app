@@ -627,6 +627,7 @@ const addBDTrustDeposit = async (req, res) => {
 const chatbot = async (req, res) => {
   const requestStartedAt = Date.now();
   const question = String(req.body?.question || "").trim();
+  const source = String(req.body?.source || "custom");
   const history = Array.isArray(req.body?.history) ? req.body.history.slice(-8) : [];
   const currentPage = String(req.body?.currentPage || "/");
   const gemBridgeUrl = `${GEMBRIDGE_BASE_URL.replace(/\/$/, "")}/chat/completions`;
@@ -657,7 +658,10 @@ const chatbot = async (req, res) => {
       });
     }
 
-    const knowledgeAnswer = answerFromKnowledge(question, projectContext.quickKnowledge);
+    const canUseQuickKnowledge = source === "suggestion";
+    const knowledgeAnswer = canUseQuickKnowledge ?
+      answerFromKnowledge(question, projectContext.quickKnowledge) :
+      null;
     if (knowledgeAnswer) {
       return res.status(200).json({
         answer: knowledgeAnswer,
