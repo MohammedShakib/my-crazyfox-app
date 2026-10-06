@@ -11,10 +11,10 @@ import {
 } from 'react-icons/fi';
 
 const STARTER_MESSAGES = [
-  'CrazyFox year 20 ending equity?',
-  'BlueCAP most profitable entity?',
-  'Rahman Trust monthly income?',
-  'Summarize all project dashboards',
+  'Year 20 ending equity',
+  'BlueCAP top entity',
+  'Rahman monthly income',
+  'Dashboard summary',
 ];
 
 const INITIAL_MESSAGES = [
@@ -288,13 +288,13 @@ export default function ProjectChatbot() {
           </div>
 
           <div className="border-t border-slate-900 bg-slate-950/90 px-4 py-3">
-            <div className="mb-3 flex gap-2 overflow-x-auto">
+            <div className="mb-3 flex flex-wrap justify-center gap-2 px-3">
               {STARTER_MESSAGES.map((starter) => (
                 <button
                   key={starter}
                   type="button"
                   onClick={() => void sendQuestion(starter)}
-                  className="shrink-0 rounded-full border border-slate-800 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-cyan-500/60 hover:bg-cyan-500/10 hover:text-white"
+                  className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3.5 py-1.5 text-xs font-semibold text-cyan-50 transition-colors hover:border-cyan-300/70 hover:bg-cyan-400/20 hover:text-white"
                 >
                   {starter}
                 </button>
